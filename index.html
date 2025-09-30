@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task Timer</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Task Kanban Timer</h1>
+            <button id="start-rest-btn" class="rest-btn">Start Rest</button>
+        </div>
+        
+        <div class="kanban-board">
+            <!-- Backlog Column -->
+            <div class="kanban-column" id="backlog-column">
+                <div class="column-header">
+                    <h2>Backlog</h2>
+                    <div class="task-count" id="backlog-count">0</div>
+                </div>
+                <div class="add-task">
+                    <input type="text" id="task-input" placeholder="Enter task name..." maxlength="50">
+                    <button id="add-task-btn" class="add-btn">Add Task</button>
+                </div>
+                <div id="backlog-tasks" class="task-list">
+                    <!-- Backlog tasks will be added here dynamically -->
+                </div>
+            </div>
+            
+            <!-- Today Column -->
+            <div class="kanban-column" id="today-column">
+                <div class="column-header">
+                    <h2>Today</h2>
+                    <div class="task-count" id="today-count">0</div>
+                </div>
+                <div id="today-tasks" class="task-list">
+                    <!-- Today tasks will be added here dynamically -->
+                </div>
+            </div>
+            
+            <!-- Completed Column -->
+            <div class="kanban-column" id="completed-column">
+                <div class="column-header">
+                    <h2>Completed</h2>
+                    <div class="task-count" id="completed-count">0</div>
+                </div>
+                <div id="completed-tasks" class="task-list">
+                    <!-- Completed tasks will be added here dynamically -->
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Doodle Canvas Modal -->
+    <div id="doodle-modal" class="doodle-modal">
+        <div class="doodle-container">
+            <div class="doodle-header">
+                <div class="doodle-timer">
+                    <span id="doodle-timer-display">00:00</span>
+                </div>
+                <div class="doodle-controls">
+                    <button id="clear-canvas" class="doodle-btn">Clear</button>
+                    <button id="close-doodle" class="doodle-btn close">✕</button>
+                </div>
+            </div>
+            <canvas id="doodle-canvas" width="800" height="600"></canvas>
+        </div>
+    </div>
+    
+    <script src="script.js"></script>
+</body>
+</html>
