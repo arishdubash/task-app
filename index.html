@@ -3,52 +3,233 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Task Timer</title>
+    <title>DEEP WORK</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>Task Kanban Timer</h1>
-            <button id="start-rest-btn" class="rest-btn">Start Rest</button>
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <div class="logo">
+                <svg class="logo-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44L2 22v-4.5A2.5 2.5 0 0 1 4.5 15h5a2.5 2.5 0 0 1 2.5 2.5v5a2.5 2.5 0 0 1-2.5 2.5h-5A2.5 2.5 0 0 1 2 22v-4.5"/>
+                    <path d="M12 2v20"/>
+                    <path d="M16 6h4a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-4"/>
+                    <path d="M4 6h4"/>
+                    <path d="M4 10h4"/>
+                    <path d="M4 14h4"/>
+                </svg>
+                <span class="logo-text">DEEP WORK</span>
+            </div>
+        </div>
+        <nav class="sidebar-nav">
+            <a href="#" class="nav-item active" data-view="tasks">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                    <line x1="16" y1="13" x2="8" y2="13"/>
+                    <line x1="16" y1="17" x2="8" y2="17"/>
+                    <polyline points="10 9 9 9 8 9"/>
+                </svg>
+                <span>Tasks</span>
+            </a>
+            <a href="#" class="nav-item" data-view="kanban">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="3" width="7" height="7"/>
+                    <rect x="14" y="3" width="7" height="7"/>
+                    <rect x="14" y="14" width="7" height="7"/>
+                    <rect x="3" y="14" width="7" height="7"/>
+                </svg>
+                <span>Kanban Board</span>
+            </a>
+            <a href="#" class="nav-item" data-view="tags">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
+                    <line x1="7" y1="7" x2="7.01" y2="7"/>
+                </svg>
+                <span>Tags</span>
+            </a>
+        </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Tasks View -->
+        <div class="container" id="tasks-view">
+            <div class="header">
+                <h1>Tasks</h1>
+                <button id="add-task-btn" class="add-btn">Add Task</button>
+            </div>
+        
+            <!-- Tag Filter Tabs -->
+            <div class="tag-filter-tabs" id="tag-filter-tabs" style="display: none;">
+                <!-- Tabs will be dynamically generated here -->
+            </div>
+            
+            <!-- Tasks Tables -->
+            <!-- This Week Table -->
+            <div class="tasks-table-section">
+                <h2 class="tasks-section-title">This Week</h2>
+                <div class="tasks-table-container">
+                    <table class="tasks-table">
+                        <thead>
+                            <tr>
+                                <th class="checkbox-col"></th>
+                                <th class="name-col">Task</th>
+                                <th class="description-col">Description</th>
+                                <th class="tags-col">Tags</th>
+                                <th class="status-col">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="this-week-tasks-body" class="sortable-tbody">
+                            <!-- Tasks will be added here dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- Later Table -->
+            <div class="tasks-table-section">
+                <h2 class="tasks-section-title">Later</h2>
+                <div class="tasks-table-container">
+                    <table class="tasks-table">
+                        <thead>
+                            <tr>
+                                <th class="checkbox-col"></th>
+                                <th class="name-col">Task</th>
+                                <th class="description-col">Description</th>
+                                <th class="tags-col">Tags</th>
+                                <th class="status-col">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="later-tasks-body" class="sortable-tbody">
+                            <!-- Tasks will be added here dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
         
-        <div class="kanban-board">
-            <!-- Backlog Column -->
-            <div class="kanban-column" id="backlog-column">
-                <div class="column-header">
-                    <h2>Backlog</h2>
-                    <div class="task-count" id="backlog-count">0</div>
+        <!-- Kanban Board View -->
+        <div class="container" id="kanban-view" style="display: none;">
+            <div class="header">
+                <h1>Kanban Board</h1>
+                <button id="start-rest-btn" class="rest-btn">Start Rest</button>
+            </div>
+        
+            <!-- Tag Filter Tabs -->
+            <div class="tag-filter-tabs" id="kanban-filter-tabs" style="display: none;">
+                <!-- Tabs will be dynamically generated here -->
+            </div>
+        
+            <div class="kanban-board">
+                <!-- Today Column -->
+                <div class="kanban-column" id="today-column">
+                    <div class="column-header">
+                        <h2>Today</h2>
+                        <div class="task-count" id="today-count">0</div>
+                    </div>
+                    <div id="today-tasks" class="task-list">
+                        <!-- Today tasks will be added here dynamically -->
+                    </div>
                 </div>
-                <div class="add-task">
-                    <input type="text" id="task-input" placeholder="Enter task name..." maxlength="50">
-                    <button id="add-task-btn" class="add-btn">Add Task</button>
+                
+                <!-- In Progress Column -->
+                <div class="kanban-column" id="in-progress-column">
+                    <div class="column-header">
+                        <h2>In Progress</h2>
+                        <div class="task-count" id="in-progress-count">0</div>
+                    </div>
+                    <div id="in-progress-tasks" class="task-list">
+                        <!-- In Progress tasks will be added here dynamically -->
+                    </div>
                 </div>
-                <div id="backlog-tasks" class="task-list">
-                    <!-- Backlog tasks will be added here dynamically -->
+                
+                <!-- Complete Column -->
+                <div class="kanban-column" id="completed-column">
+                    <div class="column-header">
+                        <h2>Complete</h2>
+                        <div class="task-count" id="completed-count">0</div>
+                    </div>
+                    <div id="completed-tasks" class="task-list">
+                        <!-- Completed tasks will be added here dynamically -->
+                    </div>
                 </div>
             </div>
-            
-            <!-- Today Column -->
-            <div class="kanban-column" id="today-column">
-                <div class="column-header">
-                    <h2>Today</h2>
-                    <div class="task-count" id="today-count">0</div>
+        </div>
+        
+        <!-- Tags Management View -->
+        <div class="container" id="tags-view" style="display: none;">
+            <div class="header">
+                <h1>Manage</h1>
+            </div>
+            <div class="tags-management">
+                <div class="tags-create-section">
+                    <h2>Create Tag</h2>
+                    <div class="tag-create-form">
+                        <input type="text" id="new-tag-name" placeholder="Tag name..." maxlength="30">
+                        <div class="color-picker">
+                            <span class="color-picker-label">Color:</span>
+                            <div class="color-options" id="color-options"></div>
+                        </div>
+                        <button id="create-tag-btn" class="add-btn">Create Tag</button>
+                    </div>
                 </div>
-                <div id="today-tasks" class="task-list">
-                    <!-- Today tasks will be added here dynamically -->
+                <div class="tags-list-section">
+                    <h2>Existing Tags</h2>
+                    <div class="tags-list" id="tags-list">
+                        <!-- Tags will be added here dynamically -->
+                    </div>
                 </div>
             </div>
-            
-            <!-- Completed Column -->
-            <div class="kanban-column" id="completed-column">
-                <div class="column-header">
-                    <h2>Completed</h2>
-                    <div class="task-count" id="completed-count">0</div>
+        </div>
+    </main>
+    
+    <!-- Add Task Modal -->
+    <div id="add-task-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Add New Task</h2>
+                <button id="close-task-modal" class="modal-close-btn">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="task-name-input">Task Name</label>
+                    <input type="text" id="task-name-input" placeholder="Enter task name..." maxlength="50">
                 </div>
-                <div id="completed-tasks" class="task-list">
-                    <!-- Completed tasks will be added here dynamically -->
+                <div class="form-group">
+                    <label for="task-description-input">Description</label>
+                    <textarea id="task-description-input" placeholder="Enter task description..." rows="3"></textarea>
                 </div>
+                <div class="form-group">
+                    <label>Tags</label>
+                    <div id="task-tags-selector" class="tags-selector">
+                        <!-- Tags will be rendered here -->
+                    </div>
+                </div>
+                <div class="form-group checkbox-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="add-to-today-checkbox">
+                        <span>Add to Today</span>
+                    </label>
+                </div>
+                <div class="form-group group-selector">
+                    <label>Task Group</label>
+                    <div class="group-radio-buttons">
+                        <label class="group-radio-label">
+                            <input type="radio" name="task-group" value="thisWeek" id="group-this-week" checked>
+                            <span>This Week</span>
+                        </label>
+                        <label class="group-radio-label">
+                            <input type="radio" name="task-group" value="later" id="group-later">
+                            <span>Later</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="cancel-task-btn" class="btn-secondary">Cancel</button>
+                <button id="save-task-btn" class="btn-primary">Add Task</button>
             </div>
         </div>
     </div>
