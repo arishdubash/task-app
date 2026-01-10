@@ -76,6 +76,10 @@ class TaskTimer {
             
             // Save selected filter
             localStorage.setItem('pomodoro_selected_filter', this.selectedTagFilter);
+            
+            // Save recent emojis (keep only 40 most recent)
+            const recentEmojisToSave = this.recentEmojis.slice(0, 40);
+            localStorage.setItem('pomodoro_recent_emojis', JSON.stringify(recentEmojisToSave));
         } catch (error) {
             console.error('Error saving to localStorage:', error);
         }
@@ -105,6 +109,10 @@ class TaskTimer {
                     if (taskCopy.currentSessionStartTime) {
                         taskCopy.currentSessionStartTime = new Date(taskCopy.currentSessionStartTime);
                     }
+                    // Backward compatibility: assign default emoji if missing
+                    if (!taskCopy.emoji && taskCopy.name) {
+                        taskCopy.emoji = this.getEmojiForTaskName(taskCopy.name);
+                    }
                     return taskCopy;
                 });
             }
@@ -131,6 +139,16 @@ class TaskTimer {
             const savedFilter = localStorage.getItem('pomodoro_selected_filter');
             if (savedFilter) {
                 this.selectedTagFilter = savedFilter;
+            }
+            
+            // Load recent emojis
+            const savedRecentEmojis = localStorage.getItem('pomodoro_recent_emojis');
+            if (savedRecentEmojis) {
+                try {
+                    this.recentEmojis = JSON.parse(savedRecentEmojis);
+                } catch (e) {
+                    this.recentEmojis = [];
+                }
             }
         } catch (error) {
             console.error('Error loading from localStorage:', error);
@@ -165,7 +183,12 @@ class TaskTimer {
         this.taskNameInput = document.getElementById('task-name-input');
         this.taskDescriptionInput = document.getElementById('task-description-input');
         this.taskTagsSelector = document.getElementById('task-tags-selector');
-        this.addToTodayCheckbox = document.getElementById('add-to-today-checkbox');
+        this.modalNewTagInput = document.getElementById('modal-new-tag-input');
+        this.modalAddTagBtn = document.getElementById('modal-add-tag-btn');
+        this.statusNoneRadio = document.getElementById('status-none');
+        this.statusTodayRadio = document.getElementById('status-today');
+        this.statusInProgressRadio = document.getElementById('status-in-progress');
+        this.statusCompleteRadio = document.getElementById('status-complete');
         this.closeTaskModalBtn = document.getElementById('close-task-modal');
         this.cancelTaskBtn = document.getElementById('cancel-task-btn');
         this.saveTaskBtn = document.getElementById('save-task-btn');
@@ -203,6 +226,151 @@ class TaskTimer {
         this.selectedTagFilter = 'all';
         this.tagFilterTabs = document.getElementById('tag-filter-tabs');
         this.kanbanFilterTabs = document.getElementById('kanban-filter-tabs');
+        
+        // Emoji selector elements
+        this.emojiPickerBtn = document.getElementById('emoji-picker-btn');
+        this.selectedEmojiDisplay = document.getElementById('selected-emoji-display');
+        this.emojiPickerDropdown = document.getElementById('emoji-picker-dropdown');
+        this.emojiSearchInput = document.getElementById('emoji-search-input');
+        this.emojiCategoryTabs = document.getElementById('emoji-category-tabs');
+        this.emojiGridContainer = document.getElementById('emoji-grid-container');
+        
+        // Track if emoji was manually selected (to prevent auto-updates)
+        this.emojiManuallySelected = false;
+        this.emojiSearchInput = document.getElementById('emoji-search-input');
+        
+        // Comprehensive emoji database organized by category
+        this.emojiCategories = {
+            'Smileys & People': ['😀', '😃', '😄', '😁', '😆', '😅', '🤣', '😂', '🙂', '🙃', '😉', '😊', '😇', '🥰', '😍', '🤩', '😘', '😗', '😚', '😙', '😋', '😛', '😜', '🤪', '😝', '🤑', '🤗', '🤭', '🤫', '🤔', '🤐', '🤨', '😐', '😑', '😶', '😏', '😒', '🙄', '😬', '🤥', '😌', '😔', '😪', '🤤', '😴', '😷', '🤒', '🤕', '🤢', '🤮', '🤧', '🥵', '🥶', '😶‍🌫️', '😵', '😵‍💫', '🤯', '🤠', '🥳', '😎', '🤓', '🧐', '😕', '😟', '🙁', '☹️', '😮', '😯', '😲', '😳', '🥺', '😦', '😧', '😨', '😰', '😥', '😢', '😭', '😱', '😖', '😣', '😞', '😓', '😩', '😫', '🥱', '😤', '😡', '😠', '🤬', '😈', '👿', '💀', '☠️', '💩', '🤡', '👹', '👺', '👻', '👽', '👾', '🤖', '😺', '😸', '😹', '😻', '😼', '😽', '🙀', '😿', '😾'],
+            'Gestures & Body Parts': ['👋', '🤚', '🖐️', '✋', '🖖', '👌', '🤌', '🤏', '✌️', '🤞', '🤟', '🤘', '🤙', '👈', '👉', '👆', '🖕', '👇', '☝️', '👍', '👎', '✊', '👊', '🤛', '🤜', '👏', '🙌', '👐', '🤲', '🤝', '🙏', '✍️', '💪', '🦾', '🦿', '🦵', '🦶', '👂', '🦻', '👃', '🧠', '🫀', '🫁', '🦷', '🦴', '👀', '👁️', '👅', '👄'],
+            'People & Family': ['👶', '🧒', '👦', '👧', '🧑', '👱', '👨', '🧔', '👨‍🦰', '👨‍🦱', '👨‍🦳', '👨‍🦲', '👩', '👩‍🦰', '🧑‍🦰', '👩‍🦱', '🧑‍🦱', '👩‍🦳', '🧑‍🦳', '👩‍🦲', '🧑‍🦲', '👱‍♀️', '👱‍♂️', '🧓', '👴', '👵', '🙍', '🙍‍♂️', '🙍‍♀️', '🙎', '🙎‍♂️', '🙎‍♀️', '🙅', '🙅‍♂️', '🙅‍♀️', '🙆', '🙆‍♂️', '🙆‍♀️', '💁', '💁‍♂️', '💁‍♀️', '🙋', '🙋‍♂️', '🙋‍♀️', '🧏', '🧏‍♂️', '🧏‍♀️', '🤦', '🤦‍♂️', '🤦‍♀️', '🤷', '🤷‍♂️', '🤷‍♀️', '🧑‍⚕️', '👨‍⚕️', '👩‍⚕️', '🧑‍🎓', '👨‍🎓', '👩‍🎓', '🧑‍🏫', '👨‍🏫', '👩‍🏫', '🧑‍⚖️', '👨‍⚖️', '👩‍⚖️', '🧑‍🌾', '👨‍🌾', '👩‍🌾', '🧑‍🍳', '👨‍🍳', '👩‍🍳', '🧑‍🔧', '👨‍🔧', '👩‍🔧', '🧑‍🏭', '👨‍🏭', '👩‍🏭', '🧑‍💼', '👨‍💼', '👩‍💼', '🧑‍🔬', '👨‍🔬', '👩‍🔬', '🧑‍💻', '👨‍💻', '👩‍💻', '🧑‍🎤', '👨‍🎤', '👩‍🎤', '🧑‍🎨', '👨‍🎨', '👩‍🎨', '🧑‍✈️', '👨‍✈️', '👩‍✈️', '🧑‍🚀', '👨‍🚀', '👩‍🚀', '🧑‍🚒', '👨‍🚒', '👩‍🚒', '👮', '👮‍♂️', '👮‍♀️', '🕵️', '🕵️‍♂️', '🕵️‍♀️', '💂', '💂‍♂️', '💂‍♀️', '🥷', '👷', '👷‍♂️', '👷‍♀️', '🤴', '👸', '👳', '👳‍♂️', '👳‍♀️', '👲', '🧕', '🤵', '🤵‍♂️', '🤵‍♀️', '👰', '👰‍♂️', '👰‍♀️', '🤰', '🤱', '👼', '🎅', '🤶', '🦸', '🦸‍♂️', '🦸‍♀️', '🦹', '🦹‍♂️', '🦹‍♀️', '🧙', '🧙‍♂️', '🧙‍♀️', '🧚', '🧚‍♂️', '🧚‍♀️', '🧛', '🧛‍♂️', '🧛‍♀️', '🧜', '🧜‍♂️', '🧜‍♀️', '🧝', '🧝‍♂️', '🧝‍♀️', '🧞', '🧞‍♂️', '🧞‍♀️', '🧟', '🧟‍♂️', '🧟‍♀️', '💆', '💆‍♂️', '💆‍♀️', '💇', '💇‍♂️', '💇‍♀️', '🚶', '🚶‍♂️', '🚶‍♀️', '🧍', '🧍‍♂️', '🧍‍♀️', '🧎', '🧎‍♂️', '🧎‍♀️', '🏃', '🏃‍♂️', '🏃‍♀️', '💃', '🕺', '🕴️', '👯', '👯‍♂️', '👯‍♀️', '🧘', '🧘‍♂️', '🧘‍♀️', '🛀', '🛌', '👭', '👫', '👬', '💏', '💑', '👪', '👨‍👩‍👧', '👨‍👩‍👧‍👦', '👨‍👩‍👦‍👦', '👨‍👩‍👧‍👧', '👩‍👩‍👦', '👩‍👩‍👧', '👩‍👩‍👧‍👦', '👩‍👩‍👦‍👦', '👩‍👩‍👧‍👧', '👨‍👨‍👦', '👨‍👨‍👧', '👨‍👨‍👧‍👦', '👨‍👨‍👦‍👦', '👨‍👨‍👧‍👧', '👩‍👦', '👩‍👧', '👩‍👧‍👦', '👩‍👦‍👦', '👩‍👧‍👧', '👨‍👦', '👨‍👧', '👨‍👧‍👦', '👨‍👦‍👦', '👨‍👧‍👧'],
+            'Animals & Nature': ['🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨', '🐯', '🦁', '🐮', '🐷', '🐽', '🐸', '🐵', '🙈', '🙉', '🙊', '🐒', '🐔', '🐧', '🐦', '🐤', '🐣', '🐥', '🦆', '🦅', '🦉', '🦇', '🐺', '🐗', '🐴', '🦄', '🐝', '🐛', '🦋', '🐌', '🐞', '🐜', '🪲', '🪳', '🦟', '🦗', '🕷️', '🦂', '🐢', '🐍', '🦎', '🦖', '🦕', '🐙', '🦑', '🦐', '🦞', '🦀', '🐡', '🐠', '🐟', '🐬', '🐳', '🐋', '🦈', '🐊', '🐅', '🐆', '🦓', '🦍', '🦧', '🦣', '🐘', '🦛', '🦏', '🐪', '🐫', '🦒', '🦘', '🦬', '🐃', '🐂', '🐄', '🐎', '🐖', '🐏', '🐑', '🦙', '🐐', '🦌', '🐕', '🐩', '🦮', '🐕‍🦺', '🐈', '🐈‍⬛', '🪶', '🐓', '🦃', '🦤', '🦚', '🦜', '🦢', '🦩', '🕊️', '🐇', '🦝', '🦨', '🦡', '🦫', '🦦', '🦥', '🐁', '🐀', '🐿️', '🦔', '🌲', '🌳', '🌴', '🌵', '🌶️', '🌾', '🌿', '☘️', '🍀', '🍁', '🍂', '🍃', '🍄', '🐚', '🪨', '🌾', '💐', '🌷', '🌹', '🥀', '🌺', '🌻', '🌼', '🌏', '🌎', '🌍', '🌕', '🌖', '🌗', '🌘', '🌑', '🌒', '🌓', '🌔', '🌙', '🌚', '🌛', '🌜', '🌝', '🌞', '⭐', '🌟', '💫', '✨', '☄️', '💥', '🔥', '☀️', '🌤️', '⛅', '🌥️', '☁️', '🌦️', '🌧️', '⛈️', '🌩️', '⚡', '☔', '⛄', '❄️', '🌊', '💧', '💦', '☔'],
+            'Food & Drink': ['🍏', '🍎', '🍐', '🍊', '🍋', '🍌', '🍉', '🍇', '🍓', '🍈', '🍒', '🍑', '🥭', '🍍', '🥥', '🥝', '🍅', '🍆', '🥑', '🥦', '🥬', '🥒', '🌶️', '🌽', '🥕', '🫒', '🥔', '🍠', '🥐', '🥯', '🍞', '🥖', '🥨', '🧀', '🥚', '🍳', '🥞', '🥓', '🥩', '🍗', '🍖', '🦴', '🌭', '🍔', '🍟', '🍕', '🫓', '🥪', '🥙', '🧆', '🌮', '🌯', '🫔', '🥗', '🥘', '🫕', '🥫', '🍝', '🍜', '🍲', '🍛', '🍣', '🍱', '🥟', '🦪', '🍤', '🍙', '🍚', '🍘', '🍥', '🥠', '🥮', '🍢', '🍡', '🍧', '🍨', '🍦', '🥧', '🧁', '🍰', '🎂', '🍮', '🍭', '🍬', '🍫', '🍿', '🍩', '🍪', '🌰', '🥜', '🍯', '🥛', '🍼', '🫖', '☕️', '🍵', '🧃', '🥤', '🧋', '🍶', '🍺', '🍻', '🥂', '🍷', '🥃', '🍸', '🍹', '🧉', '🍾', '🧊'],
+            'Travel & Places': ['🚗', '🚕', '🚙', '🚌', '🚎', '🏎️', '🚓', '🚑', '🚒', '🚐', '🛻', '🚚', '🚛', '🚜', '🦯', '🦽', '🦼', '🛴', '🚲', '🛵', '🏍️', '🛺', '🚨', '🚔', '🚍', '🚘', '🚖', '🚡', '🚠', '🚟', '🚃', '🚋', '🚞', '🚝', '🚄', '🚅', '🚈', '🚂', '🚆', '🚇', '🚊', '🚉', '✈️', '🛫', '🛬', '🛩️', '💺', '🚁', '🚟', '🛸', '🚀', '🛎️', '🧳', '⌛', '⏳', '⌚', '⏰', '⏱️', '⏲️', '🕰️', '🕛', '🕧', '🕐', '🕜', '🕑', '🕝', '🕒', '🕞', '🕓', '🕟', '🕔', '🕠', '🕕', '🕡', '🕖', '🕢', '🕗', '🕣', '🕘', '🕤', '🕙', '🕥', '🕚', '🕦', '🌍', '🌎', '🌏', '🌐', '🗺️', '🧭', '🏔️', '⛰️', '🌋', '🗻', '🏕️', '🏖️', '🏜️', '🏝️', '🏞️', '🏟️', '🏛️', '🏗️', '🧱', '🏘️', '🏚️', '🏠', '🏡', '🏢', '🏣', '🏤', '🏥', '🏦', '🏨', '🏩', '🏪', '🏫', '🏬', '🏭', '🏯', '🏰', '💒', '🗼', '🗽', '⛪', '🕌', '🛕', '🕍', '⛩️', '🕋', '⛲', '⛺', '🌁', '🌃', '🏙️', '🌄', '🌅', '🌆', '🌇', '🌉', '♨️', '🎠', '🎡', '🎢', '💈', '🎪', '🚂', '🚃', '🚄', '🚅', '🚆', '🚇', '🚈', '🚉', '🚊', '🚝', '🚞', '🚋', '🚌', '🚍', '🚎', '🚐', '🚑', '🚒', '🚓', '🚔', '🚕', '🚖', '🚗', '🚘', '🚙', '🚚', '🚛', '🚜', '🚲', '🛴', '🛵', '🏍️', '🛺', '🚨', '🚥', '🚦', '🚧', '⛽', '🛣️', '🛤️', '🛢️', '⛽', '🚏', '🗺️', '🗿', '🛕'],
+            'Activities': ['⚽', '🏀', '🏈', '⚾', '🥎', '🎾', '🏐', '🏉', '🥏', '🎱', '🏓', '🏸', '🏒', '🏑', '🥍', '🏏', '🥅', '⛳', '🏹', '🎣', '🥊', '🥋', '🎽', '🛹', '🛷', '⛸️', '🥌', '🎿', '⛷️', '🏂', '🪂', '🏋️', '🤼', '🤸', '🤺', '⛹️', '🤾', '🏌️', '🏇', '🧘', '🏄', '🏊', '🚣', '🧗', '🚵', '🚴', '🏆', '🥇', '🥈', '🥉', '🏅', '🎖️', '🏵️', '🎗️', '🎫', '🎟️', '🎪', '🤹', '🎭', '🩰', '🎨', '🎬', '🎤', '🎧', '🎼', '🎹', '🥁', '🎷', '🎺', '🎸', '🪕', '🎻', '🎲', '♟️', '🎯', '🎳', '🎮', '🎰', '🧩'],
+            'Objects': ['⌚', '📱', '📲', '💻', '⌨️', '🖥️', '🖨️', '🖱️', '🖲️', '🕹️', '🗜️', '💾', '💿', '📀', '📼', '📷', '📸', '📹', '🎥', '📽️', '🎞️', '📞', '☎️', '📟', '📠', '📺', '📻', '🎙️', '🎚️', '🎛️', '⏱️', '⏲️', '⏰', '🕰️', '⌛', '⏳', '📡', '🔋', '🔌', '💡', '🔦', '🕯️', '🪔', '🧯', '🛢️', '💸', '💵', '💴', '💶', '💷', '💰', '💳', '💎', '⚖️', '🪜', '🧰', '🪛', '🔧', '🔨', '⚒️', '🛠️', '⛏️', '🪚', '🔩', '⚙️', '🪤', '🧱', '⛓️', '🧲', '🔫', '💣', '🧨', '🪓', '🔪', '🗡️', '⚔️', '🛡️', '🚬', '⚰️', '🪦', '⚱️', '🏺', '🔮', '📿', '🧿', '💈', '⚗️', '🔭', '🔬', '🕳️', '🩹', '🩺', '💊', '💉', '🩸', '🧬', '🦠', '🧫', '🧪', '🌡️', '🧹', '🪠', '🧺', '🧻', '🚽', '🚿', '🛁', '🛀', '🧼', '🪥', '🪒', '🧴', '🧷', '🧹', '🧺', '🧻', '🛒', '🚬', '⚰️', '🪦', '⚱️', '🗿', '🛎️', '🧳', '🚪', '🛋️', '🛏️', '🛌', '🧸', '🪆', '🖼️', '🪞', '🪟', '🛍️', '🛒', '🎁', '🎈', '🎏', '🎀', '🪄', '🪅', '🎊', '🎉', '🎎', '🏮', '🎐', '🧧', '✉️', '📩', '📨', '📧', '💌', '📥', '📤', '📦', '🏷️', '📪', '📫', '📬', '📭', '📮', '📯', '📜', '📃', '📄', '📑', '🧾', '📊', '📈', '📉', '🗒️', '🗓️', '📆', '📅', '🗑️', '📇', '🗃️', '🗳️', '🗄️', '📋', '📁', '📂', '🗂️', '📌', '📍', '📎', '🖇️', '📏', '📐', '✂️', '🗃️', '🗄️', '🗑️', '🔒', '🔓', '🔏', '🔐', '🔑', '🗝️', '🔨', '🪓', '⛏️', '🪚', '🔧', '🪛', '🧰', '🪜', '⚙️', '🗜️', '⚖️', '🦯', '🔗', '⛓️', '🧰', '🧲', '🪝', '🧪', '🧫', '🧬', '🦠', '🔬', '🔭', '📡', '💉', '🩸', '💊', '🩹', '🩺', '🧴', '🪒', '🧷', '🪡', '🧵', '🧶', '🪢'],
+            'Symbols': ['❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '🤎', '💔', '❣️', '💕', '💞', '💓', '💗', '💖', '💘', '💝', '💟', '☮️', '✝️', '☪️', '🕉️', '☸️', '✡️', '🔯', '🕎', '☯️', '☦️', '🛐', '⛎', '♈', '♉', '♊', '♋', '♌', '♍', '♎', '♏', '♐', '♑', '♒', '♓', '🆔', '⚛️', '🉑', '☢️', '☣️', '📴', '📳', '🈶', '🈚', '🈸', '🈺', '🈷️', '✴️', '🆚', '💮', '🉐', '㊙️', '㊗️', '🈴', '🈵', '🈹', '🈲', '🅰️', '🅱️', '🆎', '🆑', '🅾️', '🆘', '❌', '⭕', '🛑', '⛔', '📛', '🚫', '💯', '💢', '♨️', '🚷', '🚯', '🚳', '🚱', '🔞', '📵', '🚭', '❗', '❓', '❕', '❔', '‼️', '⁉️', '🔅', '🔆', '〽️', '⚠️', '🚸', '🔱', '⚜️', '🔰', '♻️', '✅', '🈯', '💹', '❇️', '✳️', '❎', '🌐', '💠', 'Ⓜ️', '🌀', '💤', '🏧', '🚾', '♿', '🅿️', '🈳', '🈂️', '🛂', '🛃', '🛄', '🛅', '🚹', '🚺', '🚼', '🚻', '🚮', '🎦', '📶', '🈁', '🔣', '🔄', '🔤', 'ℹ️', '🔡', '🔢', '🔠', '#️⃣', '*️⃣', '0️⃣', '1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟', '🔠', '🔡', '🔢', '🔣', '🔤', '🅰️', '🆎', '🅱️', '🆑', '🆒', '🆓', 'ℹ️', '🆔', 'Ⓜ️', '🆕', '🆖', '🅾️', '🆗', '🆘', '🆙', '🆚', '🈁', '🈂️', '🈷️', '🈶', '🈯', '🉐', '🈹', '🈲', '🉑', '🈸', '🈴', '🈳', '㊗️', '㊙️', '🈺', '🈵', '🔴', '🟠', '🟡', '🟢', '🔵', '🟣', '⚫', '⚪', '🟤', '🔶', '🔷', '🔸', '🔹', '🔺', '🔻', '💠', '🔘', '🔳', '🔲', '▪️', '▫️', '◾', '◽', '◼️', '◻️', '🟥', '🟧', '🟨', '🟩', '🟦', '🟪', '⬛', '⬜', '🟫', '🔈', '🔇', '🔉', '🔊', '🔔', '🔕', '📣', '📢', '💬', '💭', '🗯️', '♠️', '♣️', '♥️', '♦️', '🃏', '🎴', '🀄', '🕐', '🕑', '🕒', '🕓', '🕔', '🕕', '🕖', '🕗', '🕘', '🕙', '🕚', '🕛', '🕜', '🕝', '🕞', '🕟', '🕠', '🕡', '🕢', '🕣', '🕤', '🕥', '🕦', '🕧'],
+            'Flags': ['🏳️', '🏴', '🏁', '🚩', '🏳️‍🌈', '🏳️‍⚧️', '🇦🇨', '🇦🇩', '🇦🇪', '🇦🇫', '🇦🇬', '🇦🇮', '🇦🇱', '🇦🇲', '🇦🇴', '🇦🇶', '🇦🇷', '🇦🇸', '🇦🇹', '🇦🇺', '🇦🇼', '🇦🇽', '🇦🇿', '🇧🇦', '🇧🇧', '🇧🇩', '🇧🇪', '🇧🇫', '🇧🇬', '🇧🇭', '🇧🇮', '🇧🇯', '🇧🇱', '🇧🇲', '🇧🇳', '🇧🇴', '🇧🇶', '🇧🇷', '🇧🇸', '🇧🇹', '🇧🇻', '🇧🇼', '🇧🇾', '🇧🇿', '🇨🇦', '🇨🇨', '🇨🇩', '🇨🇫', '🇨🇬', '🇨🇭', '🇨🇮', '🇨🇰', '🇨🇱', '🇨🇲', '🇨🇳', '🇨🇴', '🇨🇵', '🇨🇷', '🇨🇺', '🇨🇻', '🇨🇼', '🇨🇽', '🇨🇾', '🇨🇿', '🇩🇪', '🇩🇬', '🇩🇯', '🇩🇰', '🇩🇲', '🇩🇴', '🇩🇿', '🇪🇦', '🇪🇨', '🇪🇪', '🇪🇬', '🇪🇭', '🇪🇷', '🇪🇸', '🇪🇹', '🇪🇺', '🇫🇮', '🇫🇯', '🇫🇰', '🇫🇲', '🇫🇴', '🇫🇷', '🇬🇦', '🇬🇧', '🇬🇩', '🇬🇪', '🇬🇫', '🇬🇬', '🇬🇭', '🇬🇮', '🇬🇱', '🇬🇲', '🇬🇳', '🇬🇵', '🇬🇶', '🇬🇷', '🇬🇸', '🇬🇹', '🇬🇺', '🇬🇼', '🇬🇾', '🇭🇰', '🇭🇲', '🇭🇳', '🇭🇷', '🇭🇹', '🇭🇺', '🇮🇨', '🇮🇩', '🇮🇪', '🇮🇱', '🇮🇲', '🇮🇳', '🇮🇴', '🇮🇶', '🇮🇷', '🇮🇸', '🇮🇹', '🇯🇪', '🇯🇲', '🇯🇴', '🇯🇵', '🇰🇪', '🇰🇬', '🇰🇭', '🇰🇮', '🇰🇲', '🇰🇳', '🇰🇵', '🇰🇷', '🇰🇼', '🇰🇾', '🇰🇿', '🇱🇦', '🇱🇧', '🇱🇨', '🇱🇮', '🇱🇰', '🇱🇷', '🇱🇸', '🇱🇹', '🇱🇺', '🇱🇻', '🇱🇾', '🇲🇦', '🇲🇨', '🇲🇩', '🇲🇪', '🇲🇫', '🇲🇬', '🇲🇭', '🇲🇰', '🇲🇱', '🇲🇲', '🇲🇳', '🇲🇴', '🇲🇵', '🇲🇶', '🇲🇷', '🇲🇸', '🇲🇹', '🇲🇺', '🇲🇻', '🇲🇼', '🇲🇽', '🇲🇾', '🇲🇿', '🇳🇦', '🇳🇨', '🇳🇪', '🇳🇫', '🇳🇬', '🇳🇮', '🇳🇱', '🇳🇴', '🇳🇵', '🇳🇷', '🇳🇺', '🇳🇿', '🇴🇲', '🇵🇦', '🇵🇪', '🇵🇫', '🇵🇬', '🇵🇭', '🇵🇰', '🇵🇱', '🇵🇲', '🇵🇳', '🇵🇷', '🇵🇸', '🇵🇹', '🇵🇼', '🇵🇾', '🇶🇦', '🇷🇪', '🇷🇴', '🇷🇸', '🇷🇺', '🇷🇼', '🇸🇦', '🇸🇧', '🇸🇨', '🇸🇩', '🇸🇪', '🇸🇬', '🇸🇭', '🇸🇮', '🇸🇯', '🇸🇰', '🇸🇱', '🇸🇲', '🇸🇳', '🇸🇴', '🇸🇷', '🇸🇸', '🇸🇹', '🇸🇻', '🇸🇽', '🇸🇾', '🇸🇿', '🇹🇦', '🇹🇨', '🇹🇩', '🇹🇫', '🇹🇬', '🇹🇭', '🇹🇯', '🇹🇰', '🇹🇱', '🇹🇲', '🇹🇳', '🇹🇴', '🇹🇷', '🇹🇹', '🇹🇻', '🇹🇼', '🇹🇿', '🇺🇦', '🇺🇬', '🇺🇲', '🇺🇳', '🇺🇸', '🇺🇾', '🇺🇿', '🇻🇦', '🇻🇨', '🇻🇪', '🇻🇬', '🇻🇮', '🇻🇳', '🇻🇺', '🇼🇫', '🇼🇸', '🇾🇪', '🇾🇹', '🇿🇦', '🇿🇲', '🇿🇼']
+        };
+        
+        this.selectedEmojiCategory = 'Smileys & People';
+        
+        // Track recently used emojis (when manually selected and saved to tasks)
+        this.recentEmojis = []; // Array of { emoji: string, timestamp: number }
+    }
+    
+    getEmojiName(emoji) {
+        // Comprehensive emoji name mapping for tooltips - maps emoji to human-readable name
+        const emojiNames = {
+            // Animals
+            '🐘': 'Elephant', '🐶': 'Dog', '🐱': 'Cat', '🐭': 'Mouse', '🐹': 'Hamster', '🐰': 'Rabbit',
+            '🦊': 'Fox', '🐻': 'Bear', '🐼': 'Panda Bear', '🐨': 'Koala', '🐯': 'Tiger', '🦁': 'Lion',
+            '🐮': 'Cow', '🐷': 'Pig', '🐽': 'Pig Nose', '🐸': 'Frog', '🐵': 'Monkey Face', '🙈': 'See-No-Evil Monkey',
+            '🙉': 'Hear-No-Evil Monkey', '🙊': 'Speak-No-Evil Monkey', '🐒': 'Monkey', '🐔': 'Chicken', '🐧': 'Penguin',
+            '🐦': 'Bird', '🐤': 'Baby Chick', '🐣': 'Hatching Chick', '🐥': 'Front-Facing Baby Chick', '🦆': 'Duck',
+            '🦅': 'Eagle', '🦉': 'Owl', '🦇': 'Bat', '🐺': 'Wolf', '🐗': 'Boar', '🐴': 'Horse Face',
+            '🦄': 'Unicorn', '🐝': 'Honeybee', '🐛': 'Bug', '🦋': 'Butterfly', '🐌': 'Snail', '🐞': 'Lady Beetle',
+            '🐜': 'Ant', '🪲': 'Beetle', '🪳': 'Cockroach', '🦟': 'Mosquito', '🦗': 'Cricket', '🕷️': 'Spider',
+            '🦂': 'Scorpion', '🐢': 'Turtle', '🐍': 'Snake', '🦎': 'Lizard', '🦖': 'T-Rex', '🦕': 'Sauropod',
+            '🐙': 'Octopus', '🦑': 'Squid', '🦐': 'Shrimp', '🦞': 'Lobster', '🦀': 'Crab', '🐡': 'Blowfish',
+            '🐠': 'Tropical Fish', '🐟': 'Fish', '🐬': 'Dolphin', '🐳': 'Spouting Whale', '🐋': 'Whale',
+            '🦈': 'Shark', '🐊': 'Crocodile', '🐅': 'Tiger', '🐆': 'Leopard', '🦓': 'Zebra', '🦍': 'Gorilla',
+            '🦧': 'Orangutan', '🦣': 'Mammoth', '🐘': 'Elephant', '🦛': 'Hippopotamus', '🦏': 'Rhinoceros',
+            '🐪': 'Dromedary Camel', '🐫': 'Bactrian Camel', '🦒': 'Giraffe', '🦘': 'Kangaroo', '🦬': 'Bison',
+            '🐃': 'Water Buffalo', '🐂': 'Ox', '🐄': 'Cow', '🐎': 'Horse', '🐖': 'Pig', '🐏': 'Ram',
+            '🐑': 'Ewe', '🦙': 'Llama', '🐐': 'Goat', '🦌': 'Deer', '🐕': 'Dog', '🐩': 'Poodle',
+            '🦮': 'Guide Dog', '🐕‍🦺': 'Service Dog', '🐈': 'Cat', '🐈‍⬛': 'Black Cat', '🪶': 'Feather',
+            '🐓': 'Rooster', '🦃': 'Turkey', '🦤': 'Dodo', '🦚': 'Peacock', '🦜': 'Parrot', '🦢': 'Swan',
+            '🦩': 'Flamingo', '🕊️': 'Dove', '🐇': 'Rabbit', '🦝': 'Raccoon', '🦨': 'Skunk', '🦡': 'Badger',
+            '🦫': 'Beaver', '🦦': 'Otter', '🦥': 'Sloth', '🐁': 'Mouse', '🐀': 'Rat', '🐿️': 'Chipmunk',
+            '🦔': 'Hedgehog',
+            
+            // Food
+            '🍏': 'Green Apple', '🍎': 'Red Apple', '🍐': 'Pear', '🍊': 'Tangerine', '🍋': 'Lemon',
+            '🍌': 'Banana', '🍉': 'Watermelon', '🍇': 'Grapes', '🍓': 'Strawberry', '🍈': 'Melon',
+            '🍒': 'Cherries', '🍑': 'Peach', '🥭': 'Mango', '🍍': 'Pineapple', '🥥': 'Coconut',
+            '🥝': 'Kiwi Fruit', '🍅': 'Tomato', '🍆': 'Eggplant', '🥑': 'Avocado', '🥦': 'Broccoli',
+            '🥬': 'Leafy Green', '🥒': 'Cucumber', '🌶️': 'Hot Pepper', '🌽': 'Ear of Corn', '🥕': 'Carrot',
+            '🫒': 'Olive', '🥔': 'Potato', '🍠': 'Roasted Sweet Potato', '🥐': 'Croissant', '🥯': 'Bagel',
+            '🍞': 'Bread', '🥖': 'Baguette Bread', '🥨': 'Pretzel', '🧀': 'Cheese', '🥚': 'Egg',
+            '🍳': 'Cooking', '🥞': 'Pancakes', '🥓': 'Bacon', '🥩': 'Cut of Meat', '🍗': 'Poultry Leg',
+            '🍖': 'Meat on Bone', '🦴': 'Bone', '🌭': 'Hot Dog', '🍔': 'Hamburger', '🍟': 'French Fries',
+            '🍕': 'Pizza', '🫓': 'Flatbread', '🥪': 'Sandwich', '🥙': 'Stuffed Flatbread', '🧆': 'Falafel',
+            '🌮': 'Taco', '🌯': 'Burrito', '🫔': 'Tamale', '🥗': 'Green Salad', '🥘': 'Shallow Pan of Food',
+            '🫕': 'Fondue', '🥫': 'Canned Food', '🍝': 'Spaghetti', '🍜': 'Steaming Bowl', '🍲': 'Pot of Food',
+            '🍛': 'Curry Rice', '🍣': 'Sushi', '🍱': 'Bento Box', '🥟': 'Dumpling', '🦪': 'Oyster',
+            '🍤': 'Fried Shrimp', '🍙': 'Rice Ball', '🍚': 'Cooked Rice', '🍘': 'Rice Cracker', '🍥': 'Fish Cake',
+            '🥠': 'Fortune Cookie', '🥮': 'Moon Cake', '🍢': 'Oden', '🍡': 'Dango', '🍧': 'Shaved Ice',
+            '🍨': 'Ice Cream', '🍦': 'Soft Ice Cream', '🥧': 'Pie', '🧁': 'Cupcake', '🍰': 'Shortcake',
+            '🎂': 'Birthday Cake', '🍮': 'Custard', '🍭': 'Lollipop', '🍬': 'Candy', '🍫': 'Chocolate Bar',
+            '🍿': 'Popcorn', '🍩': 'Doughnut', '🍪': 'Cookie', '🌰': 'Chestnut', '🥜': 'Peanuts',
+            '🍯': 'Honey Pot', '🥛': 'Glass of Milk', '🍼': 'Baby Bottle', '🫖': 'Teapot', '☕️': 'Hot Beverage',
+            '☕': 'Hot Beverage', '🍵': 'Teacup Without Handle', '🧃': 'Beverage Box', '🥤': 'Cup With Straw',
+            '🧋': 'Bubble Tea', '🍶': 'Sake', '🍺': 'Beer Mug', '🍻': 'Clinking Beer Mugs', '🥂': 'Clinking Glasses',
+            '🍷': 'Wine Glass', '🥃': 'Tumbler Glass', '🍸': 'Cocktail Glass', '🍹': 'Tropical Drink',
+            '🧉': 'Mate', '🍾': 'Bottle With Popping Cork', '🧊': 'Ice',
+            
+            // Add more common emojis for better tooltip coverage
+            // Smileys & People (most common ones)
+            '😀': 'Grinning Face', '😃': 'Grinning Face With Big Eyes', '😄': 'Grinning Face With Smiling Eyes',
+            '😁': 'Beaming Face With Smiling Eyes', '😆': 'Grinning Squinting Face', '😅': 'Grinning Face With Sweat',
+            '🤣': 'Rolling on the Floor Laughing', '😂': 'Face With Tears of Joy', '🙂': 'Slightly Smiling Face',
+            '🙃': 'Upside-Down Face', '😉': 'Winking Face', '😊': 'Smiling Face With Smiling Eyes',
+            '😇': 'Smiling Face With Halo', '🥰': 'Smiling Face With Hearts', '😍': 'Smiling Face With Heart-Eyes',
+            '🤩': 'Star-Struck', '😘': 'Face Blowing a Kiss', '😗': 'Kissing Face',
+            '😚': 'Kissing Face With Closed Eyes', '😙': 'Kissing Face With Smiling Eyes', '😋': 'Face Savoring Food',
+            '😛': 'Face With Tongue', '😜': 'Winking Face With Tongue', '🤪': 'Zany Face',
+            '😝': 'Squinting Face With Tongue', '🤑': 'Money-Mouth Face', '🤗': 'Hugging Face',
+            '🤭': 'Face With Hand Over Mouth', '🤫': 'Shushing Face', '🤔': 'Thinking Face',
+            '🤐': 'Face With Zipper Mouth', '🤨': 'Face With Raised Eyebrow', '😐': 'Neutral Face',
+            '😑': 'Expressionless Face', '😶': 'Face Without Mouth', '😏': 'Smirking Face',
+            '😒': 'Unamused Face', '🙄': 'Face With Rolling Eyes', '😬': 'Grimacing Face',
+            '🤥': 'Lying Face', '😌': 'Relieved Face', '😔': 'Pensive Face',
+            '😪': 'Sleepy Face', '🤤': 'Drooling Face', '😴': 'Sleeping Face',
+            '😷': 'Face With Medical Mask', '🤒': 'Face With Thermometer', '🤕': 'Face With Head-Bandage',
+            '🤢': 'Nauseated Face', '🤮': 'Face Vomiting', '🤧': 'Sneezing Face',
+            '🥵': 'Hot Face', '🥶': 'Cold Face', '😵': 'Dizzy Face',
+            '🤯': 'Exploding Head', '🤠': 'Cowboy Hat Face', '🥳': 'Partying Face',
+            '😎': 'Smiling Face With Sunglasses', '🤓': 'Nerd Face', '🧐': 'Face With Monocle',
+            '😕': 'Confused Face', '😟': 'Worried Face', '🙁': 'Slightly Frowning Face',
+            '☹️': 'Frowning Face', '😮': 'Face With Open Mouth', '😯': 'Hushed Face',
+            '😲': 'Astonished Face', '😳': 'Flushed Face', '🥺': 'Pleading Face',
+            '😦': 'Frowning Face With Open Mouth', '😧': 'Anguished Face', '😨': 'Fearful Face',
+            '😰': 'Anxious Face With Sweat', '😥': 'Sad but Relieved Face', '😢': 'Crying Face',
+            '😭': 'Loudly Crying Face', '😱': 'Face Screaming in Fear', '😖': 'Confounded Face',
+            '😣': 'Persevering Face', '😞': 'Disappointed Face', '😓': 'Downcast Face With Sweat',
+            '😩': 'Weary Face', '😫': 'Tired Face', '🥱': 'Yawning Face',
+            '😤': 'Face With Steam From Nose', '😡': 'Pouting Face', '😠': 'Angry Face',
+            '🤬': 'Face With Symbols on Mouth', '😈': 'Smiling Face With Horns', '👿': 'Angry Face With Horns',
+            '💀': 'Skull', '☠️': 'Skull and Crossbones', '💩': 'Pile of Poo',
+            '🤡': 'Clown Face', '👹': 'Ogre', '👺': 'Goblin',
+            '👻': 'Ghost', '👽': 'Alien', '👾': 'Alien Monster',
+            '🤖': 'Robot', '😺': 'Grinning Cat', '😸': 'Grinning Cat With Smiling Eyes',
+            '😹': 'Cat With Tears of Joy', '😻': 'Smiling Cat With Heart-Eyes', '😼': 'Cat With Wry Smile',
+            '😽': 'Kissing Cat', '🙀': 'Weary Cat', '😿': 'Crying Cat',
+            '😾': 'Pouting Cat',
+            
+            // Gestures & Body Parts
+            '👋': 'Waving Hand', '🤚': 'Raised Back of Hand', '🖐️': 'Hand With Fingers Splayed',
+            '✋': 'Raised Hand', '🖖': 'Vulcan Salute', '👌': 'OK Hand',
+            '🤌': 'Pinched Fingers', '🤏': 'Pinching Hand', '✌️': 'Victory Hand',
+            '🤞': 'Crossed Fingers', '🤟': 'Love-You Gesture', '🤘': 'Sign of the Horns',
+            '🤙': 'Call Me Hand', '👈': 'Backhand Index Pointing Left', '👉': 'Backhand Index Pointing Right',
+            '👆': 'Backhand Index Pointing Up', '🖕': 'Middle Finger', '👇': 'Backhand Index Pointing Down',
+            '☝️': 'Index Pointing Up', '👍': 'Thumbs Up', '👎': 'Thumbs Down',
+            '✊': 'Raised Fist', '👊': 'Oncoming Fist', '🤛': 'Left-Facing Fist',
+            '🤜': 'Right-Facing Fist', '👏': 'Clapping Hands', '🙌': 'Raising Hands',
+            '👐': 'Open Hands', '🤲': 'Palms Up Together', '🤝': 'Handshake',
+            '🙏': 'Folded Hands', '✍️': 'Writing Hand', '💪': 'Flexed Biceps',
+            '🦾': 'Mechanical Arm', '🦿': 'Mechanical Leg', '🦵': 'Leg',
+            '🦶': 'Foot', '👂': 'Ear', '🦻': 'Ear With Hearing Aid',
+            '👃': 'Nose', '🧠': 'Brain', '🫀': 'Anatomical Heart',
+            '🫁': 'Lungs', '🦷': 'Tooth', '🦴': 'Bone',
+            '👀': 'Eyes', '👁️': 'Eye', '👅': 'Tongue',
+            '👄': 'Mouth',
+        };
+        
+        return emojiNames[emoji] || emoji;
     }
     
     bindEvents() {
@@ -238,7 +406,63 @@ class TaskTimer {
                     this.createTaskFromModal();
                 }
             });
+            
+            // Auto-detect emoji as user types (after each word completion)
+            this.taskNameInput.addEventListener('input', (e) => {
+                // Emoji picker is always enabled, no need to disable based on task name
+                const taskName = this.taskNameInput.value.trim();
+                
+                // Auto-detect emoji as user types (after each word completion)
+                // Only if emoji wasn't manually selected
+                if (!this.emojiManuallySelected && taskName) {
+                    // Check if user just completed a word (space, comma, period, etc.)
+                    const lastChar = e.data || '';
+                    const isWordComplete = lastChar === ' ' || lastChar === ',' || lastChar === '.' || 
+                                         lastChar === '!' || lastChar === '?' || lastChar === ';' ||
+                                         lastChar === ':' || lastChar === '\n';
+                    
+                    // Also check on every input to catch cases where user types quickly
+                    // Use a small debounce to avoid too many checks
+                    clearTimeout(this.emojiDetectionTimeout);
+                    this.emojiDetectionTimeout = setTimeout(() => {
+                        if (!this.emojiManuallySelected && this.taskNameInput.value.trim()) {
+                            const detectedEmoji = this.getEmojiForTaskName(this.taskNameInput.value.trim());
+                            this.selectEmoji(detectedEmoji, false); // false = auto-detected
+                        }
+                    }, 300); // 300ms debounce
+                }
+            });
         }
+        
+        // Emoji picker button click
+        if (this.emojiPickerBtn) {
+            this.emojiPickerBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (!this.emojiPickerBtn.disabled) {
+                    const isVisible = this.emojiPickerDropdown && this.emojiPickerDropdown.style.display !== 'none';
+                    if (this.emojiPickerDropdown) {
+                        this.emojiPickerDropdown.style.display = isVisible ? 'none' : 'block';
+                        if (!isVisible) {
+                            this.renderEmojiPicker();
+                            // Clear search on open
+                            if (this.emojiSearchInput) {
+                                this.emojiSearchInput.value = '';
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Close emoji picker when clicking outside
+        document.addEventListener('click', (e) => {
+            if (this.emojiPickerDropdown && 
+                !this.emojiPickerDropdown.contains(e.target) && 
+                this.emojiPickerBtn && 
+                !this.emojiPickerBtn.contains(e.target)) {
+                this.emojiPickerDropdown.style.display = 'none';
+            }
+        });
         
         // Close tag selector when clicking outside
         document.addEventListener('click', (e) => {
@@ -280,6 +504,17 @@ class TaskTimer {
         if (this.newTagNameInput) {
             this.newTagNameInput.addEventListener('keypress', (e) => {
                 if (e.key === 'Enter') this.createTagFromManagement();
+            });
+        }
+        
+        // Modal tag creation events
+        if (this.modalAddTagBtn) {
+            this.modalAddTagBtn.addEventListener('click', () => this.createTagFromModal());
+        }
+        
+        if (this.modalNewTagInput) {
+            this.modalNewTagInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') this.createTagFromModal();
             });
         }
         
@@ -367,24 +602,53 @@ class TaskTimer {
         // Clear or populate inputs
         if (this.taskNameInput) {
             this.taskNameInput.value = task ? task.name : '';
+            // Emoji picker is always enabled
+            if (this.emojiPickerBtn) {
+                this.emojiPickerBtn.disabled = false;
+            }
+        }
+        
+        // Reset manual selection flag when opening modal
+        this.emojiManuallySelected = false;
+        
+        // Store original emoji when editing (to check if it was changed)
+        this.originalEmoji = null;
+        
+        // Set emoji if editing task, otherwise use default
+        if (task && task.emoji) {
+            this.selectEmoji(task.emoji, false);
+            this.originalEmoji = task.emoji;
+            // If task already has emoji, consider it manually set (don't auto-update)
+            // But we'll only track it if the user changes it during this session
+            this.emojiManuallySelected = true;
+        } else {
+            const taskName = this.taskNameInput ? this.taskNameInput.value.trim() : '';
+            if (taskName) {
+                const detectedEmoji = this.getEmojiForTaskName(taskName);
+                this.selectEmoji(detectedEmoji, false);
+            } else {
+                this.selectEmoji('📝', false);
+            }
         }
         if (this.taskDescriptionInput) {
             this.taskDescriptionInput.value = task ? (task.description || '') : '';
         }
-        if (this.addToTodayCheckbox) {
-            this.addToTodayCheckbox.checked = task ? (task.state === this.TASK_STATES.TODAY) : false;
-            const checkboxGroup = this.addToTodayCheckbox.closest('.checkbox-group');
-            if (task) {
-                // Hide checkbox group if editing existing task
-                if (checkboxGroup) {
-                    checkboxGroup.style.display = 'none';
-                }
-            } else {
-                // Show checkbox group for new tasks
-                if (checkboxGroup) {
-                    checkboxGroup.style.display = 'block';
-                }
-                this.addToTodayCheckbox.disabled = false;
+        
+        // Set status radio buttons
+        if (task) {
+            if (task.state === this.TASK_STATES.TODAY && this.statusTodayRadio) {
+                this.statusTodayRadio.checked = true;
+            } else if (task.state === this.TASK_STATES.IN_PROGRESS && this.statusInProgressRadio) {
+                this.statusInProgressRadio.checked = true;
+            } else if (task.state === this.TASK_STATES.COMPLETE && this.statusCompleteRadio) {
+                this.statusCompleteRadio.checked = true;
+            } else if (this.statusNoneRadio) {
+                this.statusNoneRadio.checked = true;
+            }
+        } else {
+            // Default to None for new tasks
+            if (this.statusNoneRadio) {
+                this.statusNoneRadio.checked = true;
             }
         }
         
@@ -432,10 +696,27 @@ class TaskTimer {
         if (this.addTaskModal) {
             this.addTaskModal.classList.remove('show');
             this.currentEditingTaskId = null;
-            // Reset checkbox group visibility
-            const checkboxGroup = this.addToTodayCheckbox ? this.addToTodayCheckbox.closest('.checkbox-group') : null;
-            if (checkboxGroup) {
-                checkboxGroup.style.display = 'block';
+            // Reset emoji picker (but keep it enabled)
+            if (this.emojiPickerBtn) {
+                this.emojiPickerBtn.disabled = false;
+            }
+            if (this.selectedEmojiDisplay) {
+                this.selectedEmojiDisplay.textContent = '📝';
+            }
+            if (this.emojiPickerDropdown) {
+                this.emojiPickerDropdown.style.display = 'none';
+            }
+            // Reset manual selection flag
+            this.emojiManuallySelected = false;
+            // Clear original emoji
+            this.originalEmoji = null;
+            // Clear modal new tag input
+            if (this.modalNewTagInput) {
+                this.modalNewTagInput.value = '';
+            }
+            // Clear any pending emoji detection timeout
+            if (this.emojiDetectionTimeout) {
+                clearTimeout(this.emojiDetectionTimeout);
             }
         }
     }
@@ -448,8 +729,9 @@ class TaskTimer {
         const taskTags = task && task.tags ? task.tags : [];
         
         this.allTags.forEach(tag => {
-            const tagItem = document.createElement('div');
-            tagItem.className = 'tag-checkbox-item';
+            const tagItem = document.createElement('label');
+            tagItem.className = 'modal-tag-checkbox-item';
+            tagItem.setAttribute('for', `modal-tag-${tag.name}`);
             
             const isChecked = taskTags.includes(tag.name);
             if (isChecked) {
@@ -462,14 +744,14 @@ class TaskTimer {
             checkbox.value = tag.name;
             checkbox.checked = isChecked;
             
-            const label = document.createElement('label');
-            label.htmlFor = `modal-tag-${tag.name}`;
-            label.className = 'tag-checkbox-label';
-            label.textContent = tag.name;
-            label.style.cssText = `display: inline-block; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 500; border: 1px solid ${tag.color}; background: ${tag.color}20; color: ${tag.color}; margin: 0;`;
+            const tagSpan = document.createElement('span');
+            tagSpan.className = 'modal-tag-label';
+            const transparentBg = this.hexToRgba(tag.color, 0.15);
+            tagSpan.style.cssText = `background: ${transparentBg}; color: ${tag.color}; border: 1px solid ${tag.color};`;
+            tagSpan.textContent = tag.name;
             
             tagItem.appendChild(checkbox);
-            tagItem.appendChild(label);
+            tagItem.appendChild(tagSpan);
             
             // Update checked state when clicked
             tagItem.addEventListener('click', (e) => {
@@ -477,10 +759,46 @@ class TaskTimer {
                     checkbox.checked = !checkbox.checked;
                 }
                 tagItem.classList.toggle('checked', checkbox.checked);
+                if (checkbox.checked) {
+                    tagItem.querySelector('.modal-tag-label').style.borderColor = tag.color;
+                } else {
+                    tagItem.querySelector('.modal-tag-label').style.borderColor = tag.color;
+                }
             });
             
             this.taskTagsSelector.appendChild(tagItem);
         });
+    }
+    
+    createTagFromModal() {
+        if (!this.modalNewTagInput) return;
+        
+        const tagName = this.modalNewTagInput.value.trim().toLowerCase();
+        if (!tagName) return;
+        
+        // Check if tag already exists
+        if (this.allTags.find(t => t.name === tagName)) {
+            this.showNotification('Tag already exists!');
+            this.modalNewTagInput.value = '';
+            return;
+        }
+        
+        // Create tag with random color
+        const randomColor = this.tagColors[Math.floor(Math.random() * this.tagColors.length)];
+        const newTag = {
+            name: tagName,
+            color: randomColor.value
+        };
+        this.allTags.push(newTag);
+        
+        // Clear input
+        this.modalNewTagInput.value = '';
+        
+        // Refresh tag selector
+        const currentTask = this.currentEditingTaskId ? this.tasks.find(t => t.id === this.currentEditingTaskId) : null;
+        this.renderModalTagSelector(currentTask);
+        this.saveToLocalStorage();
+        this.showNotification('Tag created!');
     }
     
     createTaskFromModal() {
@@ -490,7 +808,32 @@ class TaskTimer {
         if (!taskName) return;
         
         const description = this.taskDescriptionInput ? this.taskDescriptionInput.value.trim() : '';
-        const addToToday = this.addToTodayCheckbox ? this.addToTodayCheckbox.checked : false;
+        
+        // Get selected status from radio buttons
+        let selectedState = this.TASK_STATES.NONE;
+        if (this.statusTodayRadio && this.statusTodayRadio.checked) {
+            selectedState = this.TASK_STATES.TODAY;
+        } else if (this.statusInProgressRadio && this.statusInProgressRadio.checked) {
+            selectedState = this.TASK_STATES.IN_PROGRESS;
+        } else if (this.statusCompleteRadio && this.statusCompleteRadio.checked) {
+            selectedState = this.TASK_STATES.COMPLETE;
+        }
+        
+        // If emoji wasn't manually selected, auto-detect it now
+        let emoji;
+        if (this.emojiManuallySelected) {
+            emoji = this.getSelectedEmoji();
+            // Track this emoji as recently used only if:
+            // 1. It's a new task (not editing), OR
+            // 2. It's being edited and the emoji was changed from the original
+            const emojiWasChanged = this.currentEditingTaskId && this.originalEmoji && emoji !== this.originalEmoji;
+            if (!this.currentEditingTaskId || emojiWasChanged) {
+                this.addToRecentEmojis(emoji);
+            }
+        } else {
+            emoji = this.getEmojiForTaskName(taskName);
+            this.selectEmoji(emoji, false);
+        }
         
         // Get selected tags
         const selectedTags = [];
@@ -506,14 +849,13 @@ class TaskTimer {
                 task.name = taskName;
                 task.description = description;
                 task.tags = selectedTags;
+                task.emoji = emoji;
+                task.state = selectedState;
+                // Mark as completed if status is complete
+                task.isCompleted = selectedState === this.TASK_STATES.COMPLETE;
                 // Update group
                 if (this.groupThisWeekRadio && this.groupLaterRadio) {
                     task.group = this.groupThisWeekRadio.checked ? 'thisWeek' : 'later';
-                }
-                // Only update state if it was a new task being added to today
-                // For editing, don't change the state via the checkbox
-                if (!task.state || task.state === this.TASK_STATES.NONE) {
-                    task.state = addToToday ? this.TASK_STATES.TODAY : this.TASK_STATES.NONE;
                 }
             }
         } else {
@@ -522,12 +864,13 @@ class TaskTimer {
                 id: Date.now(),
                 name: taskName,
                 description: description,
+                emoji: emoji,
                 timeSpent: 0,
                 isRunning: false,
-                isCompleted: false,
+                isCompleted: selectedState === this.TASK_STATES.COMPLETE,
                 startTime: null,
                 endTime: null,
-                state: addToToday ? this.TASK_STATES.TODAY : this.TASK_STATES.NONE,
+                state: selectedState,
                 sessions: [],
                 tags: selectedTags,
                 group: (this.groupThisWeekRadio && this.groupThisWeekRadio.checked) ? 'thisWeek' : 'later'
@@ -637,6 +980,21 @@ class TaskTimer {
         // Name column
         const nameCell = document.createElement('td');
         nameCell.className = 'name-col';
+        const nameContainer = document.createElement('div');
+        nameContainer.style.display = 'flex';
+        nameContainer.style.alignItems = 'center';
+        nameContainer.style.gap = '10px';
+        
+        // Emoji circle
+        if (task.emoji) {
+            const emojiCircle = document.createElement('div');
+            emojiCircle.className = 'task-emoji-circle';
+            const tagColor = task.tags && task.tags.length > 0 ? this.getTagColor(task.tags[0]) : this.tagColors[0].value;
+            emojiCircle.style.backgroundColor = this.hexToRgba(tagColor, 0.15);
+            emojiCircle.textContent = task.emoji;
+            nameContainer.appendChild(emojiCircle);
+        }
+        
         const nameSpan = document.createElement('span');
         nameSpan.className = 'task-name-clickable';
         nameSpan.textContent = task.name;
@@ -645,7 +1003,8 @@ class TaskTimer {
             nameSpan.style.opacity = '0.6';
         }
         nameSpan.addEventListener('click', () => this.editTaskFromTable(task.id));
-        nameCell.appendChild(nameSpan);
+        nameContainer.appendChild(nameSpan);
+        nameCell.appendChild(nameContainer);
         
         // Description column
         const descCell = document.createElement('td');
@@ -1032,7 +1391,10 @@ class TaskTimer {
                                  onchange="event.stopPropagation(); taskTimer.toggleTaskCompletion(${task.id})"
                                  onclick="event.stopPropagation()">
                             <div class="today-card-content">
-                                <div class="today-card-title ${task.isCompleted ? 'completed' : ''}">${task.name}</div>
+                                <div class="today-card-title ${task.isCompleted ? 'completed' : ''}" style="display: flex; align-items: center; gap: 8px;">
+                                    ${this.renderTaskEmojiCircle(task)}
+                                    <span>${task.name}</span>
+                                </div>
                                 ${kanbanTags ? `<div class="today-card-tags">${kanbanTags}</div>` : ''}
                             </div>
                             <button class="today-remove-btn" onclick="event.stopPropagation(); taskTimer.removeFromKanban(${task.id})" title="Remove from kanban">
@@ -1099,7 +1461,10 @@ class TaskTimer {
                             <div class="task-checkbox ${task.isCompleted ? 'checked' : ''}" 
                                  onclick="taskTimer.toggleTaskCompletion(${task.id})"></div>
                             <div class="task-name ${task.isCompleted ? 'completed' : ''}" 
-                                 onclick="taskTimer.startEditTask(${task.id})" title="Click to edit">${task.name}</div>
+                                 onclick="taskTimer.startEditTask(${task.id})" title="Click to edit" style="display: flex; align-items: center; gap: 8px;">
+                                 ${this.renderTaskEmojiCircle(task)}
+                                 <span>${task.name}</span>
+                            </div>
                             <div class="today-controls">
                                 ${controls}
                             </div>
@@ -1117,7 +1482,10 @@ class TaskTimer {
                         <div class="task-header">
                             <div class="task-checkbox ${task.isCompleted ? 'checked' : ''}" 
                                  onclick="taskTimer.toggleTaskCompletion(${task.id})"></div>
-                            <div class="task-name ${task.isCompleted ? 'completed' : ''}">${task.name}</div>
+                            <div class="task-name ${task.isCompleted ? 'completed' : ''}" style="display: flex; align-items: center; gap: 8px;">
+                                 ${this.renderTaskEmojiCircle(task)}
+                                 <span>${task.name}</span>
+                            </div>
                         </div>
                         ${task.description ? `<div class="task-description" style="font-size: 12px; color: var(--text-secondary); margin-top: 8px;">${task.description}</div>` : ''}
                         ${completedTags ? `<div class="task-tags">${completedTags}</div>` : ''}
@@ -2601,6 +2969,746 @@ class TaskTimer {
     getTagColor(tagName) {
         const tag = this.allTags.find(t => t.name === tagName);
         return tag ? tag.color : this.tagColors[0].value; // Default to purple
+    }
+    
+    getEmojiForTaskName(taskName) {
+        if (!taskName || !taskName.trim()) return '📝';
+        
+        const name = taskName.toLowerCase();
+        
+        // PRIORITIZE NOUNS - Check specific objects/things first
+        // Toilet/Bathroom
+        if (name.match(/\b(toilet|bathroom|restroom|wc|lavatory)\b/)) return '🚽';
+        
+        // Trash/Waste
+        if (name.match(/\b(trash|garbage|waste|rubbish|bin|dumpster)\b/)) return '🗑️';
+        
+        // Gift/Present
+        if (name.match(/\b(gift|present|surprise)\b/)) return '🎁';
+        
+        // Car/Vehicle
+        if (name.match(/\b(car|vehicle|auto|truck|motorcycle|bike)\b/)) return '🚗';
+        
+        // House/Home
+        if (name.match(/\b(house|home|apartment|condo|residence)\b/)) return '🏠';
+        
+        // Phone/Device
+        if (name.match(/\b(phone|mobile|cellphone|iphone|android|device)\b/)) return '📱';
+        
+        // Computer/Laptop
+        if (name.match(/\b(computer|laptop|pc|mac|desktop)\b/)) return '💻';
+        
+        // Book/Reading Material
+        if (name.match(/\b(book|novel|magazine|newspaper|journal)\b/)) return '📖';
+        
+        // Food Items
+        if (name.match(/\b(pizza|burger|sandwich|taco|sushi|coffee|tea|drink|water|food)\b/)) return '🍕';
+        if (name.match(/\b(apple|fruit|banana|orange|grape)\b/)) return '🍎';
+        
+        // Clothing
+        if (name.match(/\b(shirt|pants|shoes|clothes|clothing|outfit|dress)\b/)) return '👕';
+        
+        // Money/Currency
+        if (name.match(/\b(money|cash|dollar|euro|payment|salary)\b/)) return '💰';
+        
+        // Mail/Email/Letter
+        if (name.match(/\b(email|mail|letter|envelope|message|inbox)\b/)) return '📧';
+        
+        // Calendar/Date
+        if (name.match(/\b(calendar|date|appointment|meeting|event)\b/)) return '📅';
+        
+        // Camera/Photo
+        if (name.match(/\b(camera|photo|picture|image|photo)\b/)) return '📷';
+        
+        // Music/Audio
+        if (name.match(/\b(music|song|audio|sound|playlist|album)\b/)) return '🎵';
+        
+        // Video/Movie
+        if (name.match(/\b(video|movie|film|youtube|netflix)\b/)) return '🎥';
+        
+        // Game/Play
+        if (name.match(/\b(game|play|gaming|video game|console)\b/)) return '🎮';
+        
+        // Exercise/Fitness
+        if (name.match(/\b(exercise|workout|gym|fitness|running|sport)\b/)) return '💪';
+        
+        // Travel/Plane
+        if (name.match(/\b(travel|trip|vacation|flight|plane|airport)\b/)) return '✈️';
+        
+        // Shopping/Cart
+        if (name.match(/\b(shopping|store|market|mall|buy|purchase)\b/)) return '🛒';
+        
+        // Now check verbs/actions (only if no noun matched)
+        // Design/Create
+        if (name.match(/\b(design|create|draw|sketch|illustrate)\b/)) return '🎨';
+        
+        // Code/Program
+        if (name.match(/\b(code|program|develop|debug|script)\b/)) return '💻';
+        
+        // Write/Document
+        if (name.match(/\b(write|document|draft|blog|note)\b/)) return '✍️';
+        
+        // Clean/Organize
+        if (name.match(/\b(clean|organize|tidy|declutter|arrange)\b/)) return '🧹';
+        
+        // Read/Study
+        if (name.match(/\b(read|study|learn|research)\b/)) return '📚';
+        
+        // Cook/Prepare Food
+        if (name.match(/\b(cook|bake|prepare|recipe|kitchen)\b/)) return '🍳';
+        
+        // Call/Phone
+        if (name.match(/\b(call|phone|dial|ring|contact)\b/)) return '📞';
+        
+        // Build/Deploy
+        if (name.match(/\b(build|deploy|release|publish|launch)\b/)) return '🚀';
+        
+        // Fix/Repair
+        if (name.match(/\b(fix|repair|maintain|update|upgrade)\b/)) return '🔧';
+        
+        // Review/Check
+        if (name.match(/\b(review|analyze|check|inspect|audit)\b/)) return '🔍';
+        
+        // Test/QA
+        if (name.match(/\b(test|qa|quality|verify|validate)\b/)) return '🧪';
+        
+        // Default emoji if no match
+        return '📝';
+    }
+    
+    renderEmojiPicker() {
+        if (!this.emojiPickerDropdown || !this.emojiCategoryTabs || !this.emojiGridContainer) return;
+        
+        // Render category tabs - include Recent tab if there are recent emojis
+        const categoryNames = Object.keys(this.emojiCategories);
+        let categoryTabsHtml = '';
+        
+        // Add Recent tab first if there are recent emojis
+        if (this.recentEmojis && this.recentEmojis.length > 0) {
+            categoryTabsHtml += `<button type="button" class="emoji-category-tab ${this.selectedEmojiCategory === 'Recent' ? 'active' : ''}" 
+                     data-category="Recent">Recent</button>`;
+        }
+        
+        // Add other category tabs
+        categoryTabsHtml += categoryNames.map(category => 
+            `<button type="button" class="emoji-category-tab ${category === this.selectedEmojiCategory ? 'active' : ''}" 
+                     data-category="${category}">${category.split(' ')[0]}</button>`
+        ).join('');
+        
+        this.emojiCategoryTabs.innerHTML = categoryTabsHtml;
+        
+        // Add category tab click listeners
+        this.emojiCategoryTabs.querySelectorAll('.emoji-category-tab').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const category = e.target.getAttribute('data-category');
+                this.selectedEmojiCategory = category;
+                this.renderEmojiGrid();
+                // Update active tab
+                this.emojiCategoryTabs.querySelectorAll('.emoji-category-tab').forEach(t => t.classList.remove('active'));
+                e.target.classList.add('active');
+            });
+        });
+        
+        // Render emoji grid
+        this.renderEmojiGrid();
+        
+        // Setup search (remove old listener if exists to prevent duplicates)
+        if (this.emojiSearchInput) {
+            // Clone the element to remove all event listeners
+            const newSearchInput = this.emojiSearchInput.cloneNode(true);
+            this.emojiSearchInput.parentNode.replaceChild(newSearchInput, this.emojiSearchInput);
+            this.emojiSearchInput = newSearchInput;
+            
+            this.emojiSearchInput.addEventListener('input', (e) => {
+                const searchTerm = e.target.value.toLowerCase().trim();
+                // Clear active category when searching to show all results
+                if (searchTerm) {
+                    this.emojiCategoryTabs.querySelectorAll('.emoji-category-tab').forEach(t => t.classList.remove('active'));
+                }
+                this.filterEmojis(searchTerm);
+            });
+        }
+    }
+    
+    renderEmojiGrid() {
+        if (!this.emojiGridContainer) return;
+        
+        let emojis = [];
+        
+        // Handle Recent category
+        if (this.selectedEmojiCategory === 'Recent' && this.recentEmojis && this.recentEmojis.length > 0) {
+            // Get the 40 most recent emojis (already sorted by timestamp, most recent first)
+            emojis = this.recentEmojis.slice(0, 40).map(item => item.emoji);
+        } else {
+            // Use regular category emojis
+            emojis = this.emojiCategories[this.selectedEmojiCategory] || [];
+        }
+        
+        const emojiGrid = emojis.map(emoji => {
+            const emojiName = this.getEmojiName(emoji);
+            return `<button type="button" class="emoji-option" data-emoji="${emoji}" title="${emojiName}">${emoji}</button>`;
+        }).join('');
+        
+        this.emojiGridContainer.innerHTML = emojiGrid;
+        
+        // Add click listeners to emoji options
+        this.emojiGridContainer.querySelectorAll('.emoji-option').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const emoji = e.target.getAttribute('data-emoji');
+                this.selectEmoji(emoji, true); // true = manually selected
+                this.emojiPickerDropdown.style.display = 'none';
+                if (this.emojiSearchInput) {
+                    this.emojiSearchInput.value = '';
+                }
+            });
+        });
+    }
+    
+    filterEmojis(searchTerm) {
+        if (!this.emojiGridContainer) return;
+        
+        if (!searchTerm) {
+            // Show current category emojis
+            this.renderEmojiGrid();
+            return;
+        }
+        
+        // Comprehensive emoji keyword mapping - maps search terms to specific emojis
+        const emojiKeywordMap = {
+            // Animals
+            'elephant': ['🐘'],
+            'cat': ['🐱', '🐈', '🐈‍⬛'],
+            'dog': ['🐶', '🐕', '🐩', '🦮', '🐕‍🦺'],
+            'bird': ['🐦', '🐧', '🐤', '🐣', '🐥', '🦆', '🦅', '🦉', '🦇', '🦚', '🦜', '🦢', '🦩', '🕊️'],
+            'fish': ['🐟', '🐠', '🐡', '🦈', '🐬', '🐳', '🐋'],
+            'bear': ['🐻', '🐼'],
+            'tiger': ['🐯'],
+            'lion': ['🦁'],
+            'monkey': ['🐵', '🙈', '🙉', '🙊', '🐒'],
+            'rabbit': ['🐰', '🐇'],
+            'mouse': ['🐭', '🐁', '🐀'],
+            'hamster': ['🐹'],
+            'fox': ['🦊'],
+            'pig': ['🐷', '🐽', '🐖'],
+            'cow': ['🐮', '🐄', '🐃', '🐂'],
+            'horse': ['🐴', '🐎'],
+            'unicorn': ['🦄'],
+            'deer': ['🦌'],
+            'goat': ['🐐'],
+            'sheep': ['🐑', '🐏'],
+            'llama': ['🦙'],
+            'giraffe': ['🦒'],
+            'zebra': ['🦓'],
+            'camel': ['🐪', '🐫'],
+            'rhino': ['🦏'],
+            'hippo': ['🦛'],
+            'panda': ['🐼'],
+            'koala': ['🐨'],
+            'crocodile': ['🐊'],
+            'turtle': ['🐢'],
+            'snake': ['🐍'],
+            'lizard': ['🦎'],
+            'dinosaur': ['🦖', '🦕'],
+            'whale': ['🐋', '🐳'],
+            'octopus': ['🐙'],
+            'squid': ['🦑'],
+            'shrimp': ['🦐'],
+            'lobster': ['🦞'],
+            'crab': ['🦀'],
+            'butterfly': ['🦋'],
+            'bee': ['🐝'],
+            'bug': ['🐛', '🪲', '🪳', '🦟', '🦗', '🐜', '🐞'],
+            'snail': ['🐌'],
+            'spider': ['🕷️', '🕸️'],
+            'scorpion': ['🦂'],
+            'worm': ['🪱'],
+            'frog': ['🐸'],
+            'chicken': ['🐔', '🐓', '🐤', '🐣', '🐥'],
+            'rooster': ['🐓'],
+            'turkey': ['🦃'],
+            'duck': ['🦆'],
+            'owl': ['🦉'],
+            'eagle': ['🦅'],
+            'bat': ['🦇'],
+            'wolf': ['🐺'],
+            'boar': ['🐗'],
+            'rabbit': ['🐰', '🐇'],
+            'raccoon': ['🦝'],
+            'badger': ['🦡'],
+            'otter': ['🦦'],
+            'beaver': ['🦫'],
+            'skunk': ['🦨'],
+            'hedgehog': ['🦔'],
+            'squirrel': ['🐿️'],
+            'sloth': ['🦥'],
+            'mammoth': ['🦣'],
+            'gorilla': ['🦍'],
+            'orangutan': ['🦧'],
+            'bison': ['🦬'],
+            'buffalo': ['🐃', '🦬'],
+            'ox': ['🐂'],
+            'ram': ['🐏'],
+            'ewe': ['🐑'],
+            'penguin': ['🐧'],
+            'peacock': ['🦚'],
+            'parrot': ['🦜'],
+            'swan': ['🦢'],
+            'flamingo': ['🦩'],
+            'dove': ['🕊️'],
+            'dodo': ['🦤'],
+            'chipmunk': ['🐿️'],
+            'rat': ['🐀'],
+            'mouseface': ['🐭'],
+            'ladybug': ['🐞'],
+            'ladybeetle': ['🐞'],
+            'cockroach': ['🪳'],
+            'beetle': ['🪲'],
+            'mosquito': ['🦟'],
+            'cricket': ['🦗'],
+            'ants': ['🐜'],
+            'tropicalfish': ['🐠'],
+            'blowfish': ['🐡'],
+            'dolphin': ['🐬'],
+            'shark': ['🦈'],
+            'spoutingwhale': ['🐳'],
+            'trex': ['🦖'],
+            'sauropod': ['🦕'],
+            'hippopotamus': ['🦛'],
+            'rhinoceros': ['🦏'],
+            'dromedarycamel': ['🐪'],
+            'bactriancamel': ['🐫'],
+            'kangaroo': ['🦘'],
+            'waterbuffalo': ['🐃'],
+            'poodle': ['🐩'],
+            'guidedog': ['🦮'],
+            'servicedog': ['🐕‍🦺'],
+            'blackcat': ['🐈‍⬛'],
+            'rooster': ['🐓'],
+            'chick': ['🐤', '🐣', '🐥'],
+            'baby': ['🐤', '🐣', '🐥'],
+            'hatching': ['🐣'],
+            'frontfacing': ['🐥'],
+            
+            // Food
+            'pizza': ['🍕'],
+            'burger': ['🍔'],
+            'fries': ['🍟'],
+            'hotdog': ['🌭'],
+            'sandwich': ['🥪'],
+            'taco': ['🌮'],
+            'burrito': ['🌯'],
+            'popcorn': ['🍿'],
+            'donut': ['🍩'],
+            'cookie': ['🍪'],
+            'cake': ['🎂', '🍰', '🧁'],
+            'icecream': ['🍦', '🍨', '🍧'],
+            'coffee': ['☕️', '☕'],
+            'tea': ['🍵', '🫖'],
+            'beer': ['🍺', '🍻'],
+            'wine': ['🍷'],
+            'cocktail': ['🍸', '🍹', '🍾'],
+            'water': ['💧', '💦'],
+            'milk': ['🥛', '🍼'],
+            'juice': ['🧃'],
+            'boba': ['🧋'],
+            'soda': ['🥤'],
+            'apple': ['🍎', '🍏'],
+            'banana': ['🍌'],
+            'orange': ['🍊'],
+            'lemon': ['🍋'],
+            'grape': ['🍇'],
+            'strawberry': ['🍓'],
+            'watermelon': ['🍉'],
+            'pineapple': ['🍍'],
+            'mango': ['🥭'],
+            'coconut': ['🥥'],
+            'kiwi': ['🥝'],
+            'pear': ['🍐'],
+            'peach': ['🍑'],
+            'cherry': ['🍒'],
+            'melon': ['🍈'],
+            'bread': ['🍞', '🥖', '🥐', '🥯', '🥨'],
+            'cheese': ['🧀'],
+            'egg': ['🥚'],
+            'bacon': ['🥓'],
+            'meat': ['🥩', '🍖'],
+            'chicken': ['🍗'],
+            'fish': ['🐟', '🐠', '🐡'],
+            'sushi': ['🍣', '🍱'],
+            'rice': ['🍚', '🍙', '🍘'],
+            'noodles': ['🍜', '🍝'],
+            'soup': ['🍲', '🍛', '🥘', '🫕'],
+            'tamale': ['🫔'],
+            'falafel': ['🧆'],
+            'flatbread': ['🫓'],
+            // Vegetables & Fruits
+            'eggplant': ['🍆'],
+            'aubergine': ['🍆'],
+            'tomato': ['🍅'],
+            'cucumber': ['🥒'],
+            'carrot': ['🥕'],
+            'potato': ['🥔'],
+            'sweetpotato': ['🍠'],
+            'sweet': ['🍠'],
+            'corn': ['🌽'],
+            'pepper': ['🌶️'],
+            'hotpepper': ['🌶️'],
+            'chili': ['🌶️'],
+            'chilli': ['🌶️'],
+            'broccoli': ['🥦'],
+            'avocado': ['🥑'],
+            'green': ['🥬'],
+            'lettuce': ['🥬'],
+            'salad': ['🥗'],
+            'olive': ['🫒'],
+            'mushroom': ['🍄'],
+            'onion': ['🧅'],
+            'garlic': ['🧄'],
+            'ginger': ['🫚'],
+            'pea': ['🫛'],
+            'peas': ['🫛'],
+            'beans': ['🫘'],
+            'peanuts': ['🥜'],
+            'chestnut': ['🌰'],
+            'fruit': ['🍎', '🍏', '🍐', '🍊', '🍋', '🍌', '🍉', '🍇', '🍓', '🍈', '🍒', '🍑', '🥭', '🍍', '🥥', '🥝'],
+            'vegetable': ['🍆', '🍅', '🥑', '🥦', '🥬', '🥒', '🌶️', '🌽', '🥕', '🫒', '🥔', '🍠'],
+            'vegetables': ['🍆', '🍅', '🥑', '🥦', '🥬', '🥒', '🌶️', '🌽', '🥕', '🫒', '🥔', '🍠'],
+            'vegetarian': ['🍆', '🍅', '🥑', '🥦', '🥬', '🥒', '🌶️', '🌽', '🥕', '🫒', '🥔', '🍠'],
+            
+            // Objects & Things
+            'phone': ['📱', '📲', '☎️', '📞'],
+            'computer': ['💻', '🖥️', '⌨️'],
+            'keyboard': ['⌨️'],
+            'mouse': ['🖱️', '🖲️'],
+            'camera': ['📷', '📸'],
+            'video': ['📹', '🎥', '📽️', '🎞️'],
+            'tv': ['📺'],
+            'radio': ['📻'],
+            'book': ['📖', '📚', '📕', '📗', '📘', '📙', '📓', '📔', '📒', '📃', '📄', '📑'],
+            'money': ['💰', '💵', '💴', '💶', '💷', '💸', '💳'],
+            'dollar': ['💵'],
+            'euro': ['💶'],
+            'yen': ['💴'],
+            'pound': ['💷'],
+            'creditcard': ['💳'],
+            'gift': ['🎁'],
+            'balloon': ['🎈'],
+            'party': ['🎉', '🎊'],
+            'fireworks': ['🎆', '🎇'],
+            'crown': ['👑'],
+            'gem': ['💎'],
+            'ring': ['💍'],
+            'watch': ['⌚'],
+            'hourglass': ['⌛', '⏳'],
+            'clock': ['🕐', '🕑', '🕒', '🕓', '🕔', '🕕', '🕖', '🕗', '🕘', '🕙', '🕚', '🕛', '🕰️', '⏰', '⏲️', '⏱️'],
+            
+            // Vehicles
+            'car': ['🚗', '🚙', '🚕', '🚖', '🚘'],
+            'bus': ['🚌', '🚍', '🚎'],
+            'truck': ['🚚', '🚛'],
+            'motorcycle': ['🏍️', '🛵'],
+            'bike': ['🚲', '🛴'],
+            'train': ['🚂', '🚃', '🚄', '🚅', '🚆', '🚇', '🚈', '🚉', '🚊', '🚝', '🚞', '🚋'],
+            'plane': ['✈️', '🛫', '🛬', '🛩️'],
+            'helicopter': ['🚁'],
+            'rocket': ['🚀'],
+            'ufo': ['🛸'],
+            'ship': ['🚢'],
+            'boat': ['⛵', '🚤', '🛥️'],
+            'sailboat': ['⛵'],
+            
+            // Places
+            'house': ['🏠', '🏡'],
+            'home': ['🏠', '🏡'],
+            'building': ['🏢', '🏬', '🏣', '🏤', '🏥', '🏦', '🏨', '🏩', '🏪', '🏫', '🏭'],
+            'school': ['🏫'],
+            'hospital': ['🏥'],
+            'bank': ['🏦'],
+            'hotel': ['🏨'],
+            'store': ['🏪', '🏬'],
+            'church': ['⛪'],
+            'mosque': ['🕌'],
+            'synagogue': ['🕍'],
+            'temple': ['🛕', '⛩️'],
+            'castle': ['🏰', '🏯'],
+            'statue': ['🗽', '🗼'],
+            'mountain': ['⛰️', '🏔️'],
+            'volcano': ['🌋'],
+            'island': ['🏝️'],
+            'beach': ['🏖️'],
+            'camping': ['⛺', '🏕️'],
+            'desert': ['🏜️'],
+            'park': ['🏞️'],
+            'stadium': ['🏟️'],
+            'factory': ['🏭'],
+            
+            // Gestures & People
+            'wave': ['👋'],
+            'thumbsup': ['👍'],
+            'thumbsdown': ['👎'],
+            'ok': ['👌'],
+            'peace': ['✌️'],
+            'clap': ['👏'],
+            'pray': ['🙏'],
+            'muscle': ['💪'],
+            'point': ['👈', '👉', '👆', '👇', '☝️'],
+            'fist': ['✊', '👊', '🤛', '🤜'],
+            'handshake': ['🤝'],
+            'victory': ['✌️'],
+            'rock': ['🤘'],
+            'callme': ['🤙'],
+            'pinch': ['🤏'],
+            'fingerscrossed': ['🤞'],
+            'loveyou': ['🤟'],
+            'writing': ['✍️'],
+            'nose': ['👃'],
+            'ear': ['👂', '🦻'],
+            'eye': ['👀', '👁️'],
+            'tongue': ['👅'],
+            'mouth': ['👄'],
+            'brain': ['🧠'],
+            'tooth': ['🦷'],
+            'bone': ['🦴'],
+            
+            // Emotions
+            'smile': ['😀', '😃', '😄', '😁', '😆', '😅', '🤣', '😂', '🙂', '🙃', '😊', '😇', '🥰', '😍', '🤩', '😘', '😗'],
+            'happy': ['😀', '😃', '😄', '😁', '😆', '😊', '🙂', '😍', '🥰'],
+            'laugh': ['😂', '🤣', '😆'],
+            'love': ['😍', '🥰', '😘', '😗', '😚', '😙', '❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '🤎'],
+            'heart': ['❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '🤎', '💔', '❣️', '💕', '💞', '💓', '💗', '💖', '💘', '💝'],
+            'sad': ['😔', '😟', '🙁', '☹️', '😢', '😭', '😥', '😰'],
+            'cry': ['😢', '😭'],
+            'angry': ['😠', '😡', '🤬'],
+            'mad': ['😠', '😡'],
+            'confused': ['😕', '😟', '🙁', '🤔', '😵', '😵‍💫'],
+            'surprised': ['😮', '😯', '😲', '😳', '😱', '🤯'],
+            'scared': ['😨', '😰', '😱', '😦', '😧'],
+            'tired': ['😴', '😪', '😫', '😩', '🥱'],
+            'sleepy': ['😴', '😪'],
+            'sick': ['🤒', '🤕', '🤢', '🤮', '🤧', '🥵', '🥶'],
+            'nauseous': ['🤢', '🤮'],
+            'hot': ['🥵'],
+            'cold': ['🥶'],
+            'cool': ['😎', '🆒'],
+            'smart': ['🤓', '🧐'],
+            'funny': ['🤪', '😜', '😝', '😛'],
+            'silly': ['🤪', '😜', '😝'],
+            'wink': ['😉', '😜'],
+            'kiss': ['😘', '😗', '😚', '😙', '💋'],
+            'star': ['⭐', '🌟', '💫'],
+            'fire': ['🔥'],
+            'lightning': ['⚡'],
+            'rain': ['🌧️', '⛈️', '🌩️', '☔'],
+            'snow': ['❄️', '⛄', '☃️'],
+            'sun': ['☀️', '🌞'],
+            'moon': ['🌙', '🌚', '🌛', '🌜', '🌝'],
+            'cloud': ['☁️', '⛅', '🌤️', '🌥️', '🌦️'],
+            
+            // Activities
+            'sport': ['⚽', '🏀', '🏈', '⚾', '🥎', '🎾', '🏐', '🏉', '🥏'],
+            'football': ['⚽', '🏈'],
+            'basketball': ['🏀'],
+            'baseball': ['⚾', '🥎'],
+            'tennis': ['🎾'],
+            'soccer': ['⚽'],
+            'golf': ['⛳'],
+            'bowling': ['🎳'],
+            'swimming': ['🏊'],
+            'running': ['🏃'],
+            'cycling': ['🚴'],
+            'music': ['🎵', '🎶', '🎤', '🎧', '🎼', '🎹', '🥁', '🎷', '🎺', '🎸', '🪕', '🎻'],
+            'guitar': ['🎸'],
+            'piano': ['🎹'],
+            'drum': ['🥁'],
+            'trumpet': ['🎺'],
+            'saxophone': ['🎷'],
+            'violin': ['🎻'],
+            'microphone': ['🎤'],
+            'headphones': ['🎧'],
+            'game': ['🎮', '🎰', '🎲', '🃏', '🀄', '🎴'],
+            'dice': ['🎲'],
+            'trophy': ['🏆', '🥇', '🥈', '🥉', '🏅'],
+            'medal': ['🏅', '🎖️'],
+            
+            // Nature
+            'tree': ['🌲', '🌳'],
+            'flower': ['🌻', '🌺', '🌹', '🌷', '🌼', '🌸', '💐'],
+            'rose': ['🌹'],
+            'sunflower': ['🌻'],
+            'leaf': ['🍃', '🍂'],
+            'mushroom': ['🍄'],
+            'cactus': ['🌵'],
+            'palm': ['🌴'],
+            'seedling': ['🌱'],
+            'herb': ['🌿', '☘️'],
+            'shamrock': ['☘️', '🍀'],
+            'fourleaf': ['🍀'],
+            
+            // Symbols
+            'check': ['✅', '✔️'],
+            'x': ['❌', '✖️'],
+            'warning': ['⚠️'],
+            'stop': ['🛑'],
+            'no': ['🚫', '⛔'],
+            'yes': ['✅'],
+            'question': ['❓', '❔'],
+            'exclamation': ['❗', '❕'],
+            'arrow': ['➡️', '⬅️', '⬆️', '⬇️', '↗️', '↘️', '↙️', '↖️'],
+            'recycle': ['♻️'],
+            'info': ['ℹ️'],
+            'zzz': ['💤'],
+            
+            // Bathroom & Toilet
+            'toilet': ['🚽'],
+            'bathroom': ['🚽', '🚿', '🛁', '🧼'],
+            'restroom': ['🚽'],
+            'wc': ['🚽'],
+            'lavatory': ['🚽'],
+            'shower': ['🚿'],
+            'bathtub': ['🛁'],
+            'bath': ['🛁'],
+            'soap': ['🧼'],
+            'trash': ['🗑️'],
+            'garbage': ['🗑️'],
+            'waste': ['🗑️'],
+            'rubbish': ['🗑️'],
+            'bin': ['🗑️'],
+            'dumpster': ['🗑️'],
+            'vacuum': ['🧹'],
+            'broom': ['🧹'],
+            'sweep': ['🧹'],
+            'cleaning': ['🧹', '🧼'],
+        };
+        
+        // Search across all categories
+        const allEmojis = Object.values(this.emojiCategories).flat();
+        const searchLower = searchTerm.toLowerCase().trim();
+        const searchWords = searchLower.split(/\s+/);
+        
+        // First, try to find specific emojis by keyword
+        const specificMatches = new Set();
+        
+        // Check exact match first
+        if (emojiKeywordMap[searchLower]) {
+            emojiKeywordMap[searchLower].forEach(emoji => specificMatches.add(emoji));
+        }
+        
+        // Then check partial matches
+        Object.keys(emojiKeywordMap).forEach(keyword => {
+            // Check if search term matches keyword (supports partial matches)
+            if (searchLower === keyword || 
+                searchLower.includes(keyword) || 
+                keyword.includes(searchLower)) {
+                emojiKeywordMap[keyword].forEach(emoji => specificMatches.add(emoji));
+            }
+            // Also check individual words for multi-word searches
+            if (searchWords.length > 1) {
+                searchWords.forEach(word => {
+                    if (word === keyword || keyword.includes(word) || word.includes(keyword)) {
+                        emojiKeywordMap[keyword].forEach(emoji => specificMatches.add(emoji));
+                    }
+                });
+            }
+        });
+        
+        // Also check if any emoji character itself matches (rare but useful)
+        allEmojis.forEach(emoji => {
+            if (emoji === searchTerm) {
+                specificMatches.add(emoji);
+            }
+        });
+        
+        // If we found specific matches, use those
+        let filtered = [];
+        if (specificMatches.size > 0) {
+            filtered = Array.from(specificMatches);
+        } else {
+            // Fallback: search category names
+            const matchingCategories = new Set();
+            Object.keys(this.emojiCategories).forEach(category => {
+                if (category.toLowerCase().includes(searchLower)) {
+                    matchingCategories.add(category);
+                }
+            });
+            
+            if (matchingCategories.size > 0) {
+                matchingCategories.forEach(category => {
+                    if (this.emojiCategories[category]) {
+                        filtered.push(...this.emojiCategories[category]);
+                    }
+                });
+            } else {
+                // Last resort: show all emojis if nothing matches
+                filtered = allEmojis;
+            }
+        }
+        
+        // Remove duplicates and limit results
+        const uniqueFiltered = [...new Set(filtered)].slice(0, 100);
+        
+        const emojiGrid = uniqueFiltered.map(emoji => {
+            const emojiName = this.getEmojiName(emoji);
+            return `<button type="button" class="emoji-option" data-emoji="${emoji}" title="${emojiName}">${emoji}</button>`;
+        }).join('');
+        
+        this.emojiGridContainer.innerHTML = emojiGrid;
+        
+        // Add click listeners
+        this.emojiGridContainer.querySelectorAll('.emoji-option').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const emoji = e.target.getAttribute('data-emoji');
+                this.selectEmoji(emoji, true); // true = manually selected
+                this.emojiPickerDropdown.style.display = 'none';
+                if (this.emojiSearchInput) {
+                    this.emojiSearchInput.value = '';
+                }
+            });
+        });
+    }
+    
+    selectEmoji(emoji, isManual = false) {
+        if (this.selectedEmojiDisplay) {
+            this.selectedEmojiDisplay.textContent = emoji;
+        }
+        // Track if this was a manual selection
+        if (isManual) {
+            this.emojiManuallySelected = true;
+        }
+    }
+    
+    getSelectedEmoji() {
+        return this.selectedEmojiDisplay ? this.selectedEmojiDisplay.textContent.trim() : '📝';
+    }
+    
+    addToRecentEmojis(emoji) {
+        if (!emoji || emoji.trim() === '') return;
+        
+        // Remove emoji if it already exists (to move it to the top)
+        this.recentEmojis = this.recentEmojis.filter(e => e.emoji !== emoji);
+        
+        // Add to the beginning of the array with current timestamp
+        this.recentEmojis.unshift({
+            emoji: emoji,
+            timestamp: Date.now()
+        });
+        
+        // Keep only the 40 most recent
+        if (this.recentEmojis.length > 40) {
+            this.recentEmojis = this.recentEmojis.slice(0, 40);
+        }
+    }
+    
+    renderTaskEmojiCircle(task) {
+        if (!task.emoji) return '';
+        let bgColor;
+        if (task.tags && task.tags.length > 0) {
+            const tagColor = this.getTagColor(task.tags[0]);
+            bgColor = this.hexToRgba(tagColor, 0.15);
+        } else {
+            // Use purple-primary with same transparency as tags
+            bgColor = this.hexToRgba('#A78BFA', 0.15);
+        }
+        return `<div class="task-emoji-circle" style="background-color: ${bgColor}">${task.emoji}</div>`;
     }
     
     getTagByName(tagName) {

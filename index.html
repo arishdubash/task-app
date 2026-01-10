@@ -81,7 +81,7 @@
                             <tr>
                                 <th class="checkbox-col"></th>
                                 <th class="name-col">Task</th>
-                                <th class="description-col">Description</th>
+                                <th class="description-col">Notes</th>
                                 <th class="tags-col">Tags</th>
                                 <th class="status-col">Status</th>
                             </tr>
@@ -102,7 +102,7 @@
                             <tr>
                                 <th class="checkbox-col"></th>
                                 <th class="name-col">Task</th>
-                                <th class="description-col">Description</th>
+                                <th class="description-col">Notes</th>
                                 <th class="tags-col">Tags</th>
                                 <th class="status-col">Status</th>
                             </tr>
@@ -198,36 +198,79 @@
                 <button id="close-task-modal" class="modal-close-btn">✕</button>
             </div>
             <div class="modal-body">
-                <div class="form-group">
+                <div class="form-group task-name-emoji-group">
                     <label for="task-name-input">Task Name</label>
-                    <input type="text" id="task-name-input" placeholder="Enter task name..." maxlength="50">
+                    <div class="task-name-emoji-row">
+                        <input type="text" id="task-name-input" class="task-name-input-with-emoji" placeholder="Enter task name..." maxlength="50">
+                        <div id="task-emoji-selector" class="emoji-selector-container">
+                            <button type="button" id="emoji-picker-btn" class="emoji-picker-btn">
+                                <span id="selected-emoji-display" class="emoji-display">📝</span>
+                            </button>
+                            <div id="emoji-picker-dropdown" class="emoji-picker-dropdown" style="display: none;">
+                                <div class="emoji-picker-header">
+                                    <div class="emoji-search-wrapper">
+                                        <svg class="emoji-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <circle cx="11" cy="11" r="8"></circle>
+                                            <path d="m21 21-4.35-4.35"></path>
+                                        </svg>
+                                        <input type="text" id="emoji-search-input" class="emoji-search-input" placeholder="Search">
+                                    </div>
+                                </div>
+                                <div id="emoji-category-tabs" class="emoji-category-tabs">
+                                    <!-- Category tabs will be populated here -->
+                                </div>
+                                <div id="emoji-grid-container" class="emoji-grid-container">
+                                    <!-- Emoji grid will be populated here -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 <div class="form-group">
-                    <label for="task-description-input">Description</label>
-                    <textarea id="task-description-input" placeholder="Enter task description..." rows="3"></textarea>
+                    <label for="task-description-input">Notes</label>
+                    <textarea id="task-description-input" placeholder="Enter task notes..." rows="3"></textarea>
                 </div>
                 <div class="form-group">
                     <label>Tags</label>
                     <div id="task-tags-selector" class="tags-selector">
                         <!-- Tags will be rendered here -->
                     </div>
+                    <div class="tag-create-input-container">
+                        <input type="text" id="modal-new-tag-input" class="modal-new-tag-input" placeholder="Add new tag..." maxlength="30">
+                        <button type="button" id="modal-add-tag-btn" class="modal-add-tag-btn">+</button>
+                    </div>
                 </div>
-                <div class="form-group checkbox-group">
-                    <label class="checkbox-label">
-                        <input type="checkbox" id="add-to-today-checkbox">
-                        <span>Add to Today</span>
-                    </label>
+                <div class="form-group status-group">
+                    <label>Status</label>
+                    <div class="status-radio-buttons">
+                        <label class="status-radio-label">
+                            <input type="radio" name="task-status" value="none" id="status-none" checked>
+                            <span>None</span>
+                        </label>
+                        <label class="status-radio-label">
+                            <input type="radio" name="task-status" value="today" id="status-today">
+                            <span>Today</span>
+                        </label>
+                        <label class="status-radio-label">
+                            <input type="radio" name="task-status" value="in-progress" id="status-in-progress">
+                            <span>In Progress</span>
+                        </label>
+                        <label class="status-radio-label">
+                            <input type="radio" name="task-status" value="complete" id="status-complete">
+                            <span>Complete</span>
+                        </label>
+                    </div>
                 </div>
                 <div class="form-group group-selector">
                     <label>Task Group</label>
                     <div class="group-radio-buttons">
                         <label class="group-radio-label">
                             <input type="radio" name="task-group" value="thisWeek" id="group-this-week" checked>
-                            <span>This Week</span>
+                            <span class="radio-text">This Week</span>
                         </label>
                         <label class="group-radio-label">
                             <input type="radio" name="task-group" value="later" id="group-later">
-                            <span>Later</span>
+                            <span class="radio-text">Later</span>
                         </label>
                     </div>
                 </div>
