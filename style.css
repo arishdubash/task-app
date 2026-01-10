@@ -6,9 +6,9 @@
 
 :root {
     /* Dark mode colors */
-    --bg-primary: #0F0F1E;
+    --bg-primary: #141A21;
     --bg-secondary: #1A1A2E;
-    --bg-tertiary: #16213E;
+    --bg-tertiary: #1a1b1d;
     --bg-card: #1E1E3F;
     --bg-hover: #252550;
     
@@ -455,7 +455,7 @@ h1 {
 }
 
 .add-btn {
-    background: var(--purple-primary);
+    background: #7635dc;
     border: none;
     color: #FFFFFF;
     padding: 10px 20px;
@@ -469,7 +469,7 @@ h1 {
 }
 
 .add-btn:hover {
-    background: var(--purple-hover);
+    background: #5119B7;
     transform: translateY(-1px);
     box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
 }
@@ -919,6 +919,30 @@ h1 {
     padding: 8px 16px;
     border-radius: 6px;
     border: 1px solid var(--purple-primary);
+}
+
+.kanban-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 20px;
+    text-align: center;
+    color: var(--text-tertiary);
+    flex: 1;
+    min-height: 200px;
+}
+
+.empty-state-icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+    opacity: 0.6;
+}
+
+.empty-state-text {
+    font-size: 14px;
+    color: var(--text-secondary);
+    font-weight: 500;
 }
 
 .task-header {
@@ -1773,8 +1797,8 @@ h1 {
     transition: background 0.2s ease;
 }
 
-.tasks-table tbody tr:hover {
-    background: var(--bg-hover);
+.tasks-table tbody tr.task-row:hover {
+    background: rgba(255, 255, 255, 0.04);
 }
 
 .tasks-table tbody tr:last-child {
@@ -1962,7 +1986,7 @@ h1 {
 }
 
 .task-row:hover {
-    background: var(--bg-hover);
+    background: rgba(255, 255, 255, 0.04);
 }
 
 .task-row.dragging {
@@ -2266,27 +2290,29 @@ h1 {
 .modal-tag-checkbox-item {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
     cursor: pointer;
     user-select: none;
 }
 
-.modal-tag-checkbox-item input[type="checkbox"] {
-    width: 16px;
-    height: 16px;
-    cursor: pointer;
-    accent-color: var(--purple-primary);
-    margin: 0;
-    flex-shrink: 0;
-}
-
 .modal-tag-label {
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
     padding: 6px 12px;
     border-radius: 6px;
     font-size: 11px;
     font-weight: 600;
     transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+.modal-tag-label input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    accent-color: var(--purple-primary);
+    margin: 0;
+    margin-right: 8px;
+    flex-shrink: 0;
 }
 
 .modal-tag-checkbox-item.checked .modal-tag-label {
@@ -2295,6 +2321,32 @@ h1 {
 
 .modal-tag-checkbox-item:not(.checked) .modal-tag-label {
     opacity: 0.6;
+}
+
+.modal-add-tag-inline-btn {
+    background: var(--purple-bg);
+    border: 1px solid var(--border-purple);
+    color: var(--purple-primary);
+    width: auto;
+    min-width: 36px;
+    height: 32px;
+    padding: 0 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 18px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+    margin-left: 0;
+}
+
+.modal-add-tag-inline-btn:hover {
+    background: var(--purple-bg-hover);
+    border-color: var(--purple-primary);
+    transform: translateY(-1px);
 }
 
 .tag-create-input-container {
@@ -2579,7 +2631,7 @@ h1 {
 }
 
 .btn-primary {
-    background: var(--purple-primary);
+    background: #7635dc;
     border: none;
     color: #FFFFFF;
     padding: 12px 24px;
@@ -2592,7 +2644,7 @@ h1 {
 }
 
 .btn-primary:hover {
-    background: var(--purple-hover);
+    background: #5119B7;
     transform: translateY(-1px);
     box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
 }

@@ -113,7 +113,21 @@ class TaskTimer {
                     if (!taskCopy.emoji && taskCopy.name) {
                         taskCopy.emoji = this.getEmojiForTaskName(taskCopy.name);
                     }
+                    // Initialize orderIndex if missing (for backward compatibility)
+                    if (taskCopy.orderIndex === undefined) {
+                        taskCopy.orderIndex = 9999;
+                    }
                     return taskCopy;
+                });
+                
+                // Initialize orderIndex for tasks that don't have it, based on their current position
+                this.tasks.forEach((task, index) => {
+                    if (task.orderIndex === 9999) {
+                        const group = task.group || 'thisWeek';
+                        const tasksInGroup = this.tasks.filter(t => (t.group || 'thisWeek') === group);
+                        const groupIndex = tasksInGroup.indexOf(task);
+                        task.orderIndex = groupIndex;
+                    }
                 });
             }
             
@@ -183,8 +197,6 @@ class TaskTimer {
         this.taskNameInput = document.getElementById('task-name-input');
         this.taskDescriptionInput = document.getElementById('task-description-input');
         this.taskTagsSelector = document.getElementById('task-tags-selector');
-        this.modalNewTagInput = document.getElementById('modal-new-tag-input');
-        this.modalAddTagBtn = document.getElementById('modal-add-tag-btn');
         this.statusNoneRadio = document.getElementById('status-none');
         this.statusTodayRadio = document.getElementById('status-today');
         this.statusInProgressRadio = document.getElementById('status-in-progress');
@@ -507,16 +519,7 @@ class TaskTimer {
             });
         }
         
-        // Modal tag creation events
-        if (this.modalAddTagBtn) {
-            this.modalAddTagBtn.addEventListener('click', () => this.createTagFromModal());
-        }
-        
-        if (this.modalNewTagInput) {
-            this.modalNewTagInput.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') this.createTagFromModal();
-            });
-        }
+        // Modal tag creation is now handled inline via the + button in renderModalTagSelector
         
         // Initialize color picker
         this.initializeColorPicker();
@@ -710,10 +713,6 @@ class TaskTimer {
             this.emojiManuallySelected = false;
             // Clear original emoji
             this.originalEmoji = null;
-            // Clear modal new tag input
-            if (this.modalNewTagInput) {
-                this.modalNewTagInput.value = '';
-            }
             // Clear any pending emoji detection timeout
             if (this.emojiDetectionTimeout) {
                 clearTimeout(this.emojiDetectionTimeout);
@@ -729,70 +728,83 @@ class TaskTimer {
         const taskTags = task && task.tags ? task.tags : [];
         
         this.allTags.forEach(tag => {
+            const isChecked = taskTags.includes(tag.name);
+            
             const tagItem = document.createElement('label');
             tagItem.className = 'modal-tag-checkbox-item';
-            tagItem.setAttribute('for', `modal-tag-${tag.name}`);
-            
-            const isChecked = taskTags.includes(tag.name);
             if (isChecked) {
                 tagItem.classList.add('checked');
             }
-            
-            const checkbox = document.createElement('input');
-            checkbox.type = 'checkbox';
-            checkbox.id = `modal-tag-${tag.name}`;
-            checkbox.value = tag.name;
-            checkbox.checked = isChecked;
             
             const tagSpan = document.createElement('span');
             tagSpan.className = 'modal-tag-label';
             const transparentBg = this.hexToRgba(tag.color, 0.15);
             tagSpan.style.cssText = `background: ${transparentBg}; color: ${tag.color}; border: 1px solid ${tag.color};`;
-            tagSpan.textContent = tag.name;
             
-            tagItem.appendChild(checkbox);
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.value = tag.name;
+            checkbox.checked = isChecked;
+            
+            const tagText = document.createElement('span');
+            tagText.className = 'modal-tag-text';
+            tagText.textContent = tag.name;
+            
+            tagSpan.appendChild(checkbox);
+            tagSpan.appendChild(tagText);
+            
             tagItem.appendChild(tagSpan);
             
-            // Update checked state when clicked
-            tagItem.addEventListener('click', (e) => {
-                if (e.target !== checkbox) {
-                    checkbox.checked = !checkbox.checked;
-                }
+            // Update checked class when checkbox changes
+            checkbox.addEventListener('change', () => {
                 tagItem.classList.toggle('checked', checkbox.checked);
-                if (checkbox.checked) {
-                    tagItem.querySelector('.modal-tag-label').style.borderColor = tag.color;
-                } else {
-                    tagItem.querySelector('.modal-tag-label').style.borderColor = tag.color;
+            });
+            
+            // Make the entire tag clickable - clicking anywhere on the tag toggles the checkbox
+            tagItem.addEventListener('click', (e) => {
+                // If clicking directly on checkbox, let it handle naturally (change event will update class)
+                if (e.target === checkbox) {
+                    return;
                 }
+                // Otherwise, prevent default and manually toggle
+                e.preventDefault();
+                checkbox.checked = !checkbox.checked;
+                // Dispatch change event to update the class
+                checkbox.dispatchEvent(new Event('change'));
             });
             
             this.taskTagsSelector.appendChild(tagItem);
         });
+        
+        // Add + button inline with tags
+        const addTagButton = document.createElement('button');
+        addTagButton.type = 'button';
+        addTagButton.className = 'modal-add-tag-inline-btn';
+        addTagButton.textContent = '+';
+        addTagButton.addEventListener('click', () => this.createTagFromModal());
+        this.taskTagsSelector.appendChild(addTagButton);
     }
     
     createTagFromModal() {
-        if (!this.modalNewTagInput) return;
-        
-        const tagName = this.modalNewTagInput.value.trim().toLowerCase();
+        const tagName = prompt('Enter tag name:');
         if (!tagName) return;
         
+        const trimmedTagName = tagName.trim().toLowerCase();
+        if (!trimmedTagName) return;
+        
         // Check if tag already exists
-        if (this.allTags.find(t => t.name === tagName)) {
+        if (this.allTags.find(t => t.name === trimmedTagName)) {
             this.showNotification('Tag already exists!');
-            this.modalNewTagInput.value = '';
             return;
         }
         
         // Create tag with random color
         const randomColor = this.tagColors[Math.floor(Math.random() * this.tagColors.length)];
         const newTag = {
-            name: tagName,
+            name: trimmedTagName,
             color: randomColor.value
         };
         this.allTags.push(newTag);
-        
-        // Clear input
-        this.modalNewTagInput.value = '';
         
         // Refresh tag selector
         const currentTask = this.currentEditingTaskId ? this.tasks.find(t => t.id === this.currentEditingTaskId) : null;
@@ -860,6 +872,11 @@ class TaskTimer {
             }
         } else {
             // Create new task
+            const group = (this.groupThisWeekRadio && this.groupThisWeekRadio.checked) ? 'thisWeek' : 'later';
+            const tasksInGroup = this.tasks.filter(t => (t.group || 'thisWeek') === group);
+            const maxOrderIndex = tasksInGroup.reduce((max, t) => 
+                Math.max(max, t.orderIndex !== undefined ? t.orderIndex : -1), -1);
+            
             const task = {
                 id: Date.now(),
                 name: taskName,
@@ -873,7 +890,8 @@ class TaskTimer {
                 state: selectedState,
                 sessions: [],
                 tags: selectedTags,
-                group: (this.groupThisWeekRadio && this.groupThisWeekRadio.checked) ? 'thisWeek' : 'later'
+                group: group,
+                orderIndex: maxOrderIndex + 1
             };
             
             this.tasks.push(task);
@@ -921,12 +939,65 @@ class TaskTimer {
         });
         
         // Split tasks by group - show all tasks regardless of board state
-        const thisWeekTasks = tasks.filter(task => 
+        let thisWeekTasks = tasks.filter(task => 
             (!task.group || task.group === 'thisWeek')
         );
-        const laterTasks = tasks.filter(task => 
+        let laterTasks = tasks.filter(task => 
             task.group === 'later'
         );
+        
+        // Sort tasks: undone first, then completed (newly checked at top of completed section)
+        const sortTasks = (taskList) => {
+            return taskList.sort((a, b) => {
+                const aCompleted = a.isCompleted || a.state === this.TASK_STATES.COMPLETE;
+                const bCompleted = b.isCompleted || b.state === this.TASK_STATES.COMPLETE;
+                
+                // Undone tasks come first
+                if (!aCompleted && bCompleted) return -1;
+                if (aCompleted && !bCompleted) return 1;
+                
+                // If both completed, sort by completion time DESCENDING (most recent/newly checked at top)
+                if (aCompleted && bCompleted) {
+                    const aTime = a.completedAt || 0;
+                    const bTime = b.completedAt || 0;
+                    return bTime - aTime; // Later completion comes first (newly checked at top)
+                }
+                
+                // If both undone, prioritize manual order (orderIndex), then uncheckedAt
+                if (!aCompleted && !bCompleted) {
+                    const aOrder = a.orderIndex !== undefined ? a.orderIndex : 9999;
+                    const bOrder = b.orderIndex !== undefined ? b.orderIndex : 9999;
+                    
+                    // If both have orderIndex set (manually reordered), use that
+                    if (a.orderIndex !== undefined && b.orderIndex !== undefined) {
+                        return aOrder - bOrder;
+                    }
+                    
+                    // If only one has orderIndex, prioritize it
+                    if (a.orderIndex !== undefined && b.orderIndex === undefined) return -1;
+                    if (a.orderIndex === undefined && b.orderIndex !== undefined) return 1;
+                    
+                    // Neither has orderIndex, use uncheckedAt logic for newly unchecked tasks
+                    const aUncheckedTime = a.uncheckedAt || 0;
+                    const bUncheckedTime = b.uncheckedAt || 0;
+                    // If one has uncheckedAt and other doesn't, put the one with uncheckedAt at bottom
+                    if (aUncheckedTime > 0 && bUncheckedTime === 0) return 1;
+                    if (aUncheckedTime === 0 && bUncheckedTime > 0) return -1;
+                    // If both have uncheckedAt, later unchecked goes to bottom
+                    if (aUncheckedTime > 0 && bUncheckedTime > 0) {
+                        return aUncheckedTime - bUncheckedTime;
+                    }
+                    
+                    // Fallback to orderIndex (which might be 9999 for both)
+                    return aOrder - bOrder;
+                }
+                
+                return 0;
+            });
+        };
+        
+        thisWeekTasks = sortTasks(thisWeekTasks);
+        laterTasks = sortTasks(laterTasks);
         
         // Clear both tables
         this.thisWeekTasksBody.innerHTML = '';
@@ -961,11 +1032,13 @@ class TaskTimer {
     renderTaskRow(task, tbody) {
         const row = document.createElement('tr');
         row.className = 'task-row';
-        row.draggable = true;
         row.dataset.taskId = task.id;
         row.dataset.taskGroup = task.group || 'thisWeek';
         
         const isCompleted = task.isCompleted || task.state === this.TASK_STATES.COMPLETE;
+        
+        // Only allow dragging for non-completed tasks
+        row.draggable = !isCompleted;
         
         // Checkbox column
         const checkboxCell = document.createElement('td');
@@ -1090,113 +1163,257 @@ class TaskTimer {
     
     setupTaskTableDragAndDrop() {
         const taskRows = document.querySelectorAll('.task-row');
-        const thisWeekBody = this.thisWeekTasksBody;
-        const laterBody = this.laterTasksBody;
         
+        // Set up drag handlers for each row
         taskRows.forEach(row => {
-            row.addEventListener('dragstart', (e) => {
-                // Don't drag if clicking on interactive elements
-                if (e.target.tagName === 'BUTTON' || 
-                    e.target.tagName === 'INPUT' || 
-                    e.target.closest('button') || 
-                    e.target.closest('input') ||
-                    e.target.closest('.task-name-clickable')) {
-                    e.preventDefault();
-                    return;
-                }
+            // Only set up drag handlers for draggable rows (non-completed tasks)
+            if (row.draggable) {
+                row.addEventListener('dragstart', (e) => {
+                    // Double-check that task is not completed
+                    const taskId = parseInt(row.dataset.taskId);
+                    const task = this.tasks.find(t => t.id === taskId);
+                    if (task && (task.isCompleted || task.state === this.TASK_STATES.COMPLETE)) {
+                        e.preventDefault();
+                        return;
+                    }
+                    
+                    // Don't drag if clicking on interactive elements
+                    if (e.target.tagName === 'BUTTON' || 
+                        e.target.tagName === 'INPUT' || 
+                        e.target.closest('button') || 
+                        e.target.closest('input') ||
+                        e.target.closest('.task-name-clickable')) {
+                        e.preventDefault();
+                        return;
+                    }
+                    
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.dataTransfer.setData('text/plain', row.dataset.taskId);
+                    row.classList.add('dragging');
+                });
                 
-                e.dataTransfer.effectAllowed = 'move';
-                e.dataTransfer.setData('text/plain', row.dataset.taskId);
-                row.classList.add('dragging');
-            });
-            
-            row.addEventListener('dragend', () => {
-                row.classList.remove('dragging');
-            });
+                row.addEventListener('dragend', () => {
+                    row.classList.remove('dragging');
+                });
+            }
         });
         
-        [thisWeekBody, laterBody].forEach(tbody => {
-            tbody.addEventListener('dragover', (e) => {
+        // Set up tbody listeners for drop zones
+        [this.thisWeekTasksBody, this.laterTasksBody].forEach(tbody => {
+            if (!tbody) return;
+            
+            // Use a flag to avoid duplicate listeners - remove old handler if exists
+            if (tbody._dropHandler) {
+                tbody.removeEventListener('drop', tbody._dropHandler);
+                tbody.removeEventListener('dragover', tbody._dragoverHandler);
+                tbody.removeEventListener('dragleave', tbody._dragleaveHandler);
+            }
+            
+            // Create handlers
+            tbody._dragoverHandler = (e) => {
                 e.preventDefault();
                 e.dataTransfer.dropEffect = 'move';
                 
                 const dragging = document.querySelector('.task-row.dragging');
                 if (!dragging) return;
                 
+                // Make sure dragging task is not completed
+                const draggingTaskId = parseInt(dragging.dataset.taskId);
+                const draggingTask = this.tasks.find(t => t.id === draggingTaskId);
+                if (draggingTask && (draggingTask.isCompleted || draggingTask.state === this.TASK_STATES.COMPLETE)) {
+                    return;
+                }
+                
                 tbody.classList.add('drag-over');
                 
-                const afterElement = this.getDragAfterRow(tbody, e.clientY);
-                if (afterElement == null) {
+                const dropInfo = this.getDragAfterRow(tbody, e.clientY);
+                if (!dropInfo) {
+                    // No valid drop target, append to end
                     tbody.appendChild(dragging);
+                } else if (dropInfo.insertBefore) {
+                    // Insert before the target element
+                    tbody.insertBefore(dragging, dropInfo.element);
                 } else {
-                    tbody.insertBefore(dragging, afterElement);
+                    // Insert after the target element
+                    if (dropInfo.element.nextSibling) {
+                        tbody.insertBefore(dragging, dropInfo.element.nextSibling);
+                    } else {
+                        tbody.appendChild(dragging);
+                    }
                 }
-            });
+            };
             
-            tbody.addEventListener('dragleave', (e) => {
+            tbody._dragleaveHandler = (e) => {
                 if (!tbody.contains(e.relatedTarget)) {
                     tbody.classList.remove('drag-over');
                 }
-            });
+            };
             
-            tbody.addEventListener('drop', (e) => {
+            tbody._dropHandler = (e) => {
                 e.preventDefault();
+                e.stopPropagation();
                 tbody.classList.remove('drag-over');
                 
                 const taskId = parseInt(e.dataTransfer.getData('text/plain'));
-                const task = this.tasks.find(t => t.id === taskId);
-                
-                if (task) {
-                    // Determine new group based on tbody
-                    const newGroup = tbody === thisWeekBody ? 'thisWeek' : 'later';
-                    task.group = newGroup;
-                    
-                    // Update row order
-                    const rows = Array.from(tbody.querySelectorAll('.task-row'));
-                    const newOrder = rows.map(row => parseInt(row.dataset.taskId));
-                    this.reorderTasksInGroup(newGroup, newOrder);
-                    
-                    this.renderTasks();
+                if (!taskId || isNaN(taskId)) {
+                    return;
                 }
-            });
+                
+                const draggedTask = this.tasks.find(t => t.id === taskId);
+                if (!draggedTask) {
+                    return;
+                }
+                
+                if (draggedTask.isCompleted || draggedTask.state === this.TASK_STATES.COMPLETE) {
+                    return;
+                }
+                
+                // Determine new group based on tbody
+                const newGroup = tbody === this.thisWeekTasksBody ? 'thisWeek' : 'later';
+                
+                // Remove dragging class
+                const draggedRow = tbody.querySelector(`tr[data-task-id="${taskId}"]`);
+                if (draggedRow) {
+                    draggedRow.classList.remove('dragging');
+                }
+                
+                // Get ALL rows in current DOM order (the dragged row should already be in its new position)
+                const rows = Array.from(tbody.querySelectorAll('.task-row'));
+                
+                // Build new order from DOM rows - only include non-completed tasks
+                // We need to preserve the exact order they appear in the DOM, skipping completed ones
+                const newOrder = [];
+                rows.forEach((row) => {
+                    const id = parseInt(row.dataset.taskId);
+                    if (isNaN(id)) return;
+                    
+                    const t = this.tasks.find(task => task.id === id);
+                    if (t) {
+                        // Update group for the dragged task
+                        if (t.id === taskId) {
+                            t.group = newGroup;
+                        }
+                        
+                        // Only include non-completed tasks in the order
+                        if (!(t.isCompleted || t.state === this.TASK_STATES.COMPLETE)) {
+                            // Update group if this task belongs to this tbody
+                            const currentGroup = t.group || 'thisWeek';
+                            if (currentGroup === newGroup || t.id === taskId) {
+                                t.group = newGroup;
+                                newOrder.push(id);
+                            }
+                        }
+                    }
+                });
+                
+                if (newOrder.length > 0) {
+                    // Update orderIndex for all tasks in the new order
+                    this.reorderTasksInGroup(newGroup, newOrder);
+                    this.saveToLocalStorage();
+                    
+                    // Use setTimeout to ensure DOM has settled before re-rendering
+                    setTimeout(() => {
+                        this.renderTasks();
+                    }, 0);
+                }
+            };
+            
+            // Attach listeners
+            tbody.addEventListener('dragover', tbody._dragoverHandler);
+            tbody.addEventListener('dragleave', tbody._dragleaveHandler);
+            tbody.addEventListener('drop', tbody._dropHandler);
         });
     }
     
     getDragAfterRow(tbody, y) {
-        const draggableElements = [...tbody.querySelectorAll('.task-row:not(.dragging)')];
+        // Only consider non-completed tasks as valid drop targets
+        const draggableElements = [...tbody.querySelectorAll('.task-row:not(.dragging)')].filter(row => {
+            const taskId = parseInt(row.dataset.taskId);
+            const task = this.tasks.find(t => t.id === taskId);
+            return task && !(task.isCompleted || task.state === this.TASK_STATES.COMPLETE);
+        });
         
-        return draggableElements.reduce((closest, child) => {
+        if (draggableElements.length === 0) {
+            return null;
+        }
+        
+        // Find the element closest to the cursor position
+        const result = draggableElements.reduce((closest, child) => {
             const box = child.getBoundingClientRect();
-            const offset = y - box.top - box.height / 2;
+            const boxCenter = box.top + box.height / 2;
+            const distance = Math.abs(y - boxCenter);
             
-            if (offset < 0 && offset > closest.offset) {
-                return { offset: offset, element: child };
-            } else {
-                return closest;
+            // If this element is closer than the current closest, use it
+            if (distance < closest.distance) {
+                return {
+                    distance: distance,
+                    element: child,
+                    insertBefore: y < boxCenter // Insert before if cursor is above center
+                };
             }
-        }, { offset: Number.NEGATIVE_INFINITY }).element;
+            
+            return closest;
+        }, { distance: Infinity, element: null, insertBefore: true });
+        
+        return result.element ? result : null;
     }
     
     reorderTasksInGroup(group, newOrder) {
+        // Get all tasks in this group BEFORE we modify anything
         const tasksInGroup = this.tasks.filter(task => 
             (task.group || 'thisWeek') === group
         );
         
+        // Separate completed and undone tasks
+        const undoneTasks = tasksInGroup.filter(task => 
+            !(task.isCompleted || task.state === this.TASK_STATES.COMPLETE)
+        );
+        const completedTasks = tasksInGroup.filter(task => 
+            task.isCompleted || task.state === this.TASK_STATES.COMPLETE
+        );
+        
+        // For undone tasks: Update orderIndex based on newOrder (manually reordered)
+        // The newOrder contains ONLY undone tasks in their new manual order
+        const orderedTaskIds = new Set(newOrder);
+        newOrder.forEach((id, index) => {
+            const task = undoneTasks.find(t => t.id === id);
+            if (task) {
+                task.orderIndex = index;
+                task.uncheckedAt = null; // Clear uncheckedAt so manual order takes precedence
+                task.group = group; // Ensure group is set
+            }
+        });
+        
+        // For undone tasks NOT in newOrder (shouldn't happen, but handle it)
+        undoneTasks.forEach(task => {
+            if (!orderedTaskIds.has(task.id)) {
+                // Keep existing orderIndex or set a high value to keep them at end
+                if (task.orderIndex === undefined || task.orderIndex === null) {
+                    task.orderIndex = 9999;
+                }
+            }
+        });
+        
+        // Build final reordered list: manually ordered undone tasks + completed tasks
         const reorderedTasks = [];
+        
+        // Add undone tasks in the manual order (newOrder)
         newOrder.forEach(id => {
-            const task = tasksInGroup.find(t => t.id === id);
+            const task = undoneTasks.find(t => t.id === id);
             if (task) {
                 reorderedTasks.push(task);
             }
         });
         
-        // Add any tasks in this group that weren't in the newOrder (shouldn't happen but just in case)
-        const orderedTaskIds = new Set(newOrder);
-        tasksInGroup.forEach(task => {
+        // Add any other undone tasks that weren't in newOrder (shouldn't happen)
+        undoneTasks.forEach(task => {
             if (!orderedTaskIds.has(task.id)) {
                 reorderedTasks.push(task);
             }
         });
+        
+        // Add completed tasks (they maintain their own order from sorting)
+        reorderedTasks.push(...completedTasks);
         
         // Get all other tasks (not in this group)
         const otherTasks = this.tasks.filter(task => 
@@ -1236,14 +1453,47 @@ class TaskTimer {
         const task = this.tasks.find(t => t.id === taskId);
         if (!task) return;
         
+        // Find the current row element
+        const currentRow = document.querySelector(`tr[data-task-id="${taskId}"]`);
+        if (!currentRow) {
+            // Fallback if row not found
+            task.isCompleted = !task.isCompleted;
+            if (task.isCompleted) {
+                task.completedAt = Date.now();
+                task.uncheckedAt = null;
+                task.state = this.TASK_STATES.COMPLETE;
+            } else {
+                task.completedAt = null;
+                task.uncheckedAt = Date.now();
+                if (task.state === this.TASK_STATES.COMPLETE) {
+                    task.state = this.TASK_STATES.NONE;
+                }
+            }
+            this.saveToLocalStorage();
+            this.renderTasks();
+            this.renderKanbanFilterTabs();
+            return;
+        }
+        
+        const tbody = currentRow.closest('tbody');
+        const taskGroup = task.group || 'thisWeek';
+        const targetTbody = taskGroup === 'later' ? this.laterTasksBody : this.thisWeekTasksBody;
+        
+        // Store initial position for FLIP animation
+        const firstRect = currentRow.getBoundingClientRect();
+        const firstTop = firstRect.top;
+        
         // Toggle completion
         task.isCompleted = !task.isCompleted;
         
-        // If completing, move to Complete state
+        // Track completion/uncheck time
         if (task.isCompleted) {
+            task.completedAt = Date.now();
+            task.uncheckedAt = null; // Clear unchecked time
             task.state = this.TASK_STATES.COMPLETE;
         } else {
-            // If uncompleting and was in complete state, move back to None
+            task.completedAt = null;
+            task.uncheckedAt = Date.now(); // Track when unchecked
             if (task.state === this.TASK_STATES.COMPLETE) {
                 task.state = this.TASK_STATES.NONE;
             }
@@ -1254,9 +1504,218 @@ class TaskTimer {
             this.pauseTask(taskId);
         }
         
+        // Update row content immediately
+        this.updateTaskRowContent(currentRow, task);
+        
+        // Store original position for animation
+        const originalTbody = tbody;
+        const originalNextSibling = currentRow.nextSibling;
+        
+        // Get visible tasks from the target tbody (accounts for tag filtering)
+        const visibleRows = Array.from(targetTbody.querySelectorAll('tr[data-task-id]'));
+        const visibleTaskIds = visibleRows
+            .filter(row => row !== currentRow)
+            .map(row => parseInt(row.dataset.taskId));
+        
+        // Get all tasks in the same group and filter to only visible ones for sorting
+        const sameGroupTasks = this.tasks.filter(t => {
+            const inGroup = (t.group || 'thisWeek') === taskGroup;
+            return inGroup && (visibleTaskIds.includes(t.id) || t.id === taskId);
+        });
+        
+        // Sort tasks to determine target position (matching renderTasksTable logic)
+        const sortedTasks = sameGroupTasks.sort((a, b) => {
+            const aCompleted = a.isCompleted || a.state === this.TASK_STATES.COMPLETE;
+            const bCompleted = b.isCompleted || b.state === this.TASK_STATES.COMPLETE;
+            
+            // Undone tasks come first
+            if (!aCompleted && bCompleted) return -1;
+            if (aCompleted && !bCompleted) return 1;
+            
+            // If both completed, sort by completion time DESCENDING (most recent/newly checked at top)
+            if (aCompleted && bCompleted) {
+                const aTime = a.completedAt || 0;
+                const bTime = b.completedAt || 0;
+                return bTime - aTime; // Later completion comes first (newly checked at top)
+            }
+            
+            // If both undone, sort by uncheckedAt or maintain order (newly unchecked at bottom)
+            if (!aCompleted && !bCompleted) {
+                const aUncheckedTime = a.uncheckedAt || 0;
+                const bUncheckedTime = b.uncheckedAt || 0;
+                // If one has uncheckedAt and other doesn't, put the one with uncheckedAt at bottom
+                if (aUncheckedTime > 0 && bUncheckedTime === 0) return 1;
+                if (aUncheckedTime === 0 && bUncheckedTime > 0) return -1;
+                // If both have uncheckedAt, later unchecked goes to bottom
+                if (aUncheckedTime > 0 && bUncheckedTime > 0) {
+                    return aUncheckedTime - bUncheckedTime; // Earlier unchecked comes first, later at bottom
+                }
+                // Otherwise maintain original order
+                return 0;
+            }
+            
+            return 0;
+        });
+        
+        // Find where this task should be positioned in sorted order
+        const taskIndex = sortedTasks.findIndex(t => t.id === taskId);
+        
+        // Find the reference row based on sorted order
+        // The reference row is the task that should come AFTER our task in the sorted order
+        // We insert BEFORE the reference row to place our task in the correct position
+        let referenceRow = null;
+        
+        if (taskIndex < sortedTasks.length - 1) {
+            // There's a next task in sorted order - find it in the DOM
+            const nextTaskId = sortedTasks[taskIndex + 1].id;
+            const nextRow = targetTbody.querySelector(`tr[data-task-id="${nextTaskId}"]`);
+            // Only use as reference if it exists and is not the current row
+            if (nextRow && nextRow !== currentRow) {
+                referenceRow = nextRow;
+            }
+        }
+        
+        // If no reference row found (we're at the end), we'll append at the bottom
+        
+        // Check if we actually need to move (same tbody and position)
+        const needsMove = targetTbody !== originalTbody || 
+                         (referenceRow && referenceRow !== originalNextSibling) ||
+                         (!referenceRow && originalNextSibling) ||
+                         (referenceRow && !originalNextSibling && targetTbody === originalTbody);
+        
+        if (!needsMove) {
+            // No move needed, just update content and save
+            this.saveToLocalStorage();
+            return;
+        }
+        
+        // Temporarily remove row to allow other rows to settle
+        // Use visibility to hide without affecting layout during removal
+        currentRow.style.visibility = 'hidden';
+        currentRow.style.willChange = 'transform';
+        const placeholder = document.createComment('placeholder');
+        if (currentRow.parentNode) {
+            currentRow.parentNode.insertBefore(placeholder, currentRow);
+            currentRow.remove();
+        }
+        
+        // Insert row at new position
+        if (targetTbody !== originalTbody) {
+            // Moving to different tbody
+            if (referenceRow) {
+                targetTbody.insertBefore(currentRow, referenceRow);
+            } else {
+                targetTbody.appendChild(currentRow);
+            }
+        } else {
+            // Same tbody, reordering
+            if (referenceRow) {
+                targetTbody.insertBefore(currentRow, referenceRow);
+            } else {
+                targetTbody.appendChild(currentRow);
+            }
+        }
+        
+        // Get final position for FLIP animation
+        const lastRect = currentRow.getBoundingClientRect();
+        const lastTop = lastRect.top;
+        
+        // Invert: Move row back to original position using transform
+        const invert = firstTop - lastTop;
+        currentRow.style.transform = `translateY(${invert}px)`;
+        currentRow.style.transition = 'none';
+        currentRow.style.opacity = '0.95';
+        currentRow.style.visibility = 'visible';
+        
+        // Remove placeholder
+        if (placeholder.parentNode) {
+            placeholder.parentNode.removeChild(placeholder);
+        }
+        
+        // Force reflow to apply transform
+        currentRow.offsetHeight;
+        
+        // Play: Animate to final position with fast start, gentle ease-out at end
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                currentRow.style.transition = 'transform 0.5s cubic-bezier(0.1, 0, 0.05, 1), opacity 0.5s ease-out';
+                currentRow.style.transform = 'translateY(0)';
+                currentRow.style.opacity = '1';
+                
+                // Clean up after animation
+                const cleanup = () => {
+                    currentRow.style.transform = '';
+                    currentRow.style.transition = '';
+                    currentRow.style.visibility = '';
+                    currentRow.style.opacity = '';
+                    currentRow.style.willChange = '';
+                };
+                
+                currentRow.addEventListener('transitionend', cleanup, { once: true });
+                // Fallback cleanup in case transitionend doesn't fire
+                setTimeout(cleanup, 550);
+            });
+        });
+        
         this.saveToLocalStorage();
-        this.renderTasks();
-        this.renderKanbanFilterTabs();
+        
+        // Re-render after a delay to ensure sync (but animation should be done by then)
+        setTimeout(() => {
+            this.renderTasks();
+            this.renderKanbanFilterTabs();
+        }, 550);
+    }
+    
+    updateTaskRowContent(row, task) {
+        const isCompleted = task.isCompleted || task.state === this.TASK_STATES.COMPLETE;
+        
+        // Update checkbox
+        const checkbox = row.querySelector('.table-checkbox');
+        if (checkbox) {
+            checkbox.checked = isCompleted;
+        }
+        
+        // Update task name styling
+        const nameSpan = row.querySelector('.task-name-clickable');
+        if (nameSpan) {
+            if (isCompleted) {
+                nameSpan.style.textDecoration = 'line-through';
+                nameSpan.style.opacity = '0.6';
+            } else {
+                nameSpan.style.textDecoration = 'none';
+                nameSpan.style.opacity = '1';
+            }
+        }
+        
+        // Update status cell if needed
+        const statusCell = row.querySelector('.status-col');
+        if (statusCell) {
+            statusCell.innerHTML = '';
+            if (!task.state || task.state === this.TASK_STATES.NONE) {
+                const addToBoardBtn = document.createElement('button');
+                addToBoardBtn.className = 'table-action-btn primary';
+                addToBoardBtn.textContent = 'Add to Board';
+                addToBoardBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.moveTaskToBoard(task.id);
+                });
+                statusCell.appendChild(addToBoardBtn);
+            } else {
+                const statusSpan = document.createElement('span');
+                statusSpan.className = 'table-status';
+                if (task.state === this.TASK_STATES.TODAY) {
+                    statusSpan.className += ' today';
+                    statusSpan.textContent = 'Today';
+                } else if (task.state === this.TASK_STATES.IN_PROGRESS) {
+                    statusSpan.className += ' in-progress';
+                    statusSpan.textContent = 'In Progress';
+                } else if (task.state === this.TASK_STATES.COMPLETE) {
+                    statusSpan.className += ' complete';
+                    statusSpan.textContent = 'Complete';
+                }
+                statusCell.appendChild(statusSpan);
+            }
+        }
     }
     
     moveTaskToBoard(taskId) {
@@ -1272,6 +1731,33 @@ class TaskTimer {
     }
     
     renderTaskColumn(tasks, container, columnState) {
+        // Check if there are no tasks and render empty state
+        if (tasks.length === 0) {
+            const emptyStateElement = document.createElement('div');
+            emptyStateElement.className = 'kanban-empty-state';
+            
+            let emptyMessage = '';
+            let emptyIcon = '';
+            
+            if (columnState === this.TASK_STATES.TODAY) {
+                emptyMessage = 'No tasks for today';
+                emptyIcon = '📅';
+            } else if (columnState === this.TASK_STATES.IN_PROGRESS) {
+                emptyMessage = 'No tasks in progress';
+                emptyIcon = '⚡';
+            } else if (columnState === this.TASK_STATES.COMPLETE) {
+                emptyMessage = 'No completed tasks yet';
+                emptyIcon = '✅';
+            }
+            
+            emptyStateElement.innerHTML = `
+                <div class="empty-state-icon">${emptyIcon}</div>
+                <div class="empty-state-text">${emptyMessage}</div>
+            `;
+            container.appendChild(emptyStateElement);
+            return;
+        }
+        
         tasks.forEach(task => {
             const taskElement = document.createElement('div');
             taskElement.className = `task-item ${task.isRunning ? 'running' : ''} ${task.isEditing ? 'editing' : ''}`;
@@ -2515,10 +3001,19 @@ class TaskTimer {
     switchView(viewName) {
         // Update nav items
         document.querySelectorAll('.nav-item').forEach(item => {
+            const svg = item.querySelector('svg');
             if (item.dataset.view === viewName) {
                 item.classList.add('active');
+                // Apply gradient to SVG when active
+                if (svg) {
+                    svg.setAttribute('stroke', 'url(#nav-gradient-active)');
+                }
             } else {
                 item.classList.remove('active');
+                // Reset SVG to currentColor when not active
+                if (svg) {
+                    svg.setAttribute('stroke', 'currentColor');
+                }
             }
         });
         
@@ -3935,7 +4430,10 @@ class TaskTimer {
         allTab.className = `filter-tab ${this.selectedTagFilter === 'all' ? 'active' : ''}`;
         allTab.dataset.filter = 'all';
         
-        const allCount = this.tasks.length;
+        // Count only non-completed tasks
+        const allCount = this.tasks.filter(task => 
+            !(task.isCompleted || task.state === this.TASK_STATES.COMPLETE)
+        ).length;
         allTab.innerHTML = `
             <span class="filter-tab-label">All</span>
             <span class="filter-tab-badge">${allCount}</span>
@@ -3949,8 +4447,9 @@ class TaskTimer {
             tab.className = `filter-tab ${this.selectedTagFilter === tag.name ? 'active' : ''}`;
             tab.dataset.filter = tag.name;
             
-            // Count tasks with this tag
+            // Count non-completed tasks with this tag
             const tagCount = this.tasks.filter(task => 
+                !(task.isCompleted || task.state === this.TASK_STATES.COMPLETE) &&
                 task.tags && task.tags.includes(tag.name)
             ).length;
             
@@ -3980,10 +4479,11 @@ class TaskTimer {
         allTab.className = `filter-tab ${this.selectedTagFilter === 'all' ? 'active' : ''}`;
         allTab.dataset.filter = 'all';
         
+        // Count only non-completed tasks on the board
         const allCount = this.tasks.filter(task => 
-            task.state === this.TASK_STATES.TODAY || 
-            task.state === this.TASK_STATES.IN_PROGRESS || 
-            task.state === this.TASK_STATES.COMPLETE
+            (task.state === this.TASK_STATES.TODAY || 
+             task.state === this.TASK_STATES.IN_PROGRESS) &&
+            !(task.isCompleted || task.state === this.TASK_STATES.COMPLETE)
         ).length;
         allTab.innerHTML = `
             <span class="filter-tab-label">All</span>
@@ -3998,11 +4498,11 @@ class TaskTimer {
             tab.className = `filter-tab ${this.selectedTagFilter === tag.name ? 'active' : ''}`;
             tab.dataset.filter = tag.name;
             
-            // Count tasks with this tag on the board
+            // Count non-completed tasks with this tag on the board
             const tagCount = this.tasks.filter(task => 
                 (task.state === this.TASK_STATES.TODAY || 
-                 task.state === this.TASK_STATES.IN_PROGRESS || 
-                 task.state === this.TASK_STATES.COMPLETE) &&
+                 task.state === this.TASK_STATES.IN_PROGRESS) &&
+                !(task.isCompleted || task.state === this.TASK_STATES.COMPLETE) &&
                 task.tags && task.tags.includes(tag.name)
             ).length;
             

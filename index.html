@@ -29,7 +29,7 @@
         </svg>
         <nav class="sidebar-nav">
             <a href="#" class="nav-item active" data-view="tasks">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="url(#nav-gradient-active)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="stroke: url(#nav-gradient-active);">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
                     <polyline points="14 2 14 8 20 8"/>
                     <line x1="16" y1="13" x2="8" y2="13"/>
@@ -84,6 +84,7 @@
                                 <th class="description-col">Notes</th>
                                 <th class="tags-col">Tags</th>
                                 <th class="status-col">Status</th>
+                                <th class="empty"> </th>
                             </tr>
                         </thead>
                         <tbody id="this-week-tasks-body" class="sortable-tbody">
@@ -119,7 +120,7 @@
         <div class="container" id="kanban-view" style="display: none;">
             <div class="header">
                 <h1>Kanban Board</h1>
-                <button id="start-rest-btn" class="rest-btn">Start Rest</button>
+                <button id="start-rest-btn" class="btn-primary">Start Rest</button>
             </div>
         
             <!-- Tag Filter Tabs -->
@@ -234,10 +235,6 @@
                     <label>Tags</label>
                     <div id="task-tags-selector" class="tags-selector">
                         <!-- Tags will be rendered here -->
-                    </div>
-                    <div class="tag-create-input-container">
-                        <input type="text" id="modal-new-tag-input" class="modal-new-tag-input" placeholder="Add new tag..." maxlength="30">
-                        <button type="button" id="modal-add-tag-btn" class="modal-add-tag-btn">+</button>
                     </div>
                 </div>
                 <div class="form-group status-group">
