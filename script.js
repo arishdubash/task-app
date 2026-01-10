@@ -664,7 +664,8 @@ class TaskTimer {
                 if (tag) {
                     const tagSpan = document.createElement('span');
                     tagSpan.className = 'task-tag';
-                    tagSpan.style.cssText = `background: ${tag.color}20; border-color: ${tag.color}; color: ${tag.color}`;
+                    const transparentBg = this.hexToRgba(tag.color, 0.15);
+                    tagSpan.style.cssText = `background: ${transparentBg}; color: ${tag.color}`;
                     tagSpan.textContent = tagName;
                     tagsContainer.appendChild(tagSpan);
                 }
@@ -2288,7 +2289,8 @@ class TaskTimer {
             
             const tagPreview = document.createElement('div');
             tagPreview.className = 'tag-preview';
-            tagPreview.style.cssText = `background: ${tag.color}20; border-color: ${tag.color}; color: ${tag.color}`;
+            const transparentBg = this.hexToRgba(tag.color, 0.15);
+            tagPreview.style.cssText = `background: ${transparentBg}; color: ${tag.color}`;
             tagPreview.textContent = tag.name;
             
             const tagActions = document.createElement('div');
@@ -2665,13 +2667,23 @@ class TaskTimer {
         this.renderFilterTabs();
     }
     
+    // Helper function to convert hex to rgba with transparency
+    hexToRgba(hex, alpha = 0.15) {
+        const num = parseInt(hex.replace('#', ''), 16);
+        const r = (num >> 16) & 255;
+        const g = (num >> 8) & 255;
+        const b = num & 255;
+        return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+    
     renderTags(tags, taskId) {
         if (!tags || tags.length === 0) return '';
         
         return tags.map(tagName => {
             const tagColor = this.getTagColor(tagName);
+            const transparentBg = this.hexToRgba(tagColor, 0.15);
             return `
-                <span class="task-tag" style="background: ${tagColor}20; border-color: ${tagColor}; color: ${tagColor}">
+                <span class="task-tag" style="background: ${transparentBg}; color: ${tagColor}">
                     ${tagName}
                     <button class="remove-tag-btn" onclick="taskTimer.removeTagFromTask(${taskId}, '${tagName}')" title="Remove tag">
                         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -2688,8 +2700,9 @@ class TaskTimer {
         
         return tags.map(tagName => {
             const tagColor = this.getTagColor(tagName);
+            const transparentBg = this.hexToRgba(tagColor, 0.15);
             return `
-                <span class="task-tag-readonly" style="background: ${tagColor}20; border-color: ${tagColor}; color: ${tagColor}">
+                <span class="task-tag-readonly" style="background: ${transparentBg}; color: ${tagColor}">
                     ${tagName}
                 </span>
             `;

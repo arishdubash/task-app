@@ -8,30 +8,35 @@
 </head>
 <body>
     <!-- Sidebar Navigation -->
-    <aside class="sidebar">
+    <aside class="sidebar" id="sidebar">
         <div class="sidebar-header">
             <div class="logo">
-                <svg class="logo-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44L2 22v-4.5A2.5 2.5 0 0 1 4.5 15h5a2.5 2.5 0 0 1 2.5 2.5v5a2.5 2.5 0 0 1-2.5 2.5h-5A2.5 2.5 0 0 1 2 22v-4.5"/>
-                    <path d="M12 2v20"/>
-                    <path d="M16 6h4a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-4"/>
-                    <path d="M4 6h4"/>
-                    <path d="M4 10h4"/>
-                    <path d="M4 14h4"/>
-                </svg>
-                <span class="logo-text">DEEP WORK</span>
+                <img src="images/logo.png" alt="Get Shit Done logo" class="logo-image" id="logo-image">
+                <img src="images/icon.png" alt="Get Shit Done icon" class="logo-image icon-image" id="icon-image">
             </div>
         </div>
+        <svg style="position: absolute; width: 0; height: 0;">
+            <defs>
+                <linearGradient id="nav-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" style="stop-color:var(--purple-primary);stop-opacity:1" />
+                    <stop offset="100%" style="stop-color:var(--purple-light);stop-opacity:1" />
+                </linearGradient>
+                <linearGradient id="nav-gradient-active" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" style="stop-color:var(--purple-primary);stop-opacity:1" />
+                    <stop offset="100%" style="stop-color:var(--purple-light);stop-opacity:1" />
+                </linearGradient>
+            </defs>
+        </svg>
         <nav class="sidebar-nav">
             <a href="#" class="nav-item active" data-view="tasks">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="url(#nav-gradient-active)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="stroke: url(#nav-gradient-active);">
                     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
                     <polyline points="14 2 14 8 20 8"/>
                     <line x1="16" y1="13" x2="8" y2="13"/>
                     <line x1="16" y1="17" x2="8" y2="17"/>
                     <polyline points="10 9 9 9 8 9"/>
                 </svg>
-                <span>Tasks</span>
+                <span class="nav-item-text">Tasks</span>
             </a>
             <a href="#" class="nav-item" data-view="kanban">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -40,14 +45,14 @@
                     <rect x="14" y="14" width="7" height="7"/>
                     <rect x="3" y="14" width="7" height="7"/>
                 </svg>
-                <span>Kanban Board</span>
+                <span class="nav-item-text">Kanban Board</span>
             </a>
             <a href="#" class="nav-item" data-view="tags">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
                     <line x1="7" y1="7" x2="7.01" y2="7"/>
                 </svg>
-                <span>Tags</span>
+                <span class="nav-item-text">Tags</span>
             </a>
         </nav>
     </aside>
