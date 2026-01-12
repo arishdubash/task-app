@@ -267,6 +267,9 @@ class TaskTimer {
         
         this.selectedEmojiCategory = 'Smileys & People';
         
+        // Build emoji keyword map for search
+        this.emojiKeywordMap = this.buildEmojiKeywordMap();
+        
         // Track recently used emojis (when manually selected and saved to tasks)
         this.recentEmojis = []; // Array of { emoji: string, timestamp: number }
     }
@@ -380,9 +383,640 @@ class TaskTimer {
             '🫁': 'Lungs', '🦷': 'Tooth', '🦴': 'Bone',
             '👀': 'Eyes', '👁️': 'Eye', '👅': 'Tongue',
             '👄': 'Mouth',
+            
+            // Objects & Household Items
+            '🗑️': 'Wastebasket',
+            '🧹': 'Broom',
+            '🧼': 'Soap',
+            '🚽': 'Toilet',
+            '🚿': 'Shower',
+            '🛁': 'Bathtub',
+            '🪥': 'Toothbrush',
+            '🪒': 'Razor',
+            '🧴': 'Lotion Bottle',
+            '🧷': 'Safety Pin',
+            '🪠': 'Plunger',
+            '🧺': 'Basket',
+            '🧻': 'Roll of Paper',
+            '🛒': 'Shopping Cart',
+            '🚪': 'Door',
+            '🛋️': 'Couch',
+            '🛏️': 'Bed',
+            '🛌': 'Person in Bed',
+            '🧸': 'Teddy Bear',
+            '🪆': 'Nesting Dolls',
+            '🖼️': 'Framed Picture',
+            '🪞': 'Mirror',
+            '🪟': 'Window',
+            '🛍️': 'Shopping Bags',
+            '🎁': 'Wrapped Gift',
+            '🎈': 'Balloon',
+            '🎏': 'Carp Streamer',
+            '🎀': 'Ribbon',
+            '🪄': 'Magic Wand',
+            '🪅': 'Piñata',
+            '🎊': 'Confetti Ball',
+            '🎉': 'Party Popper',
+            '🎎': 'Japanese Dolls',
+            '🏮': 'Red Paper Lantern',
+            '🎐': 'Wind Chime',
+            '🧧': 'Red Envelope',
+            
+            // People & Family
+            '👶': 'Baby', '🧒': 'Child', '👦': 'Boy', '👧': 'Girl', '🧑': 'Person', '👱': 'Person: Blond Hair',
+            '👨': 'Man', '🧔': 'Person: Beard', '👨‍🦰': 'Man: Red Hair', '👨‍🦱': 'Man: Curly Hair', '👨‍🦳': 'Man: White Hair', '👨‍🦲': 'Man: Bald',
+            '👩': 'Woman', '👩‍🦰': 'Woman: Red Hair', '🧑‍🦰': 'Person: Red Hair', '👩‍🦱': 'Woman: Curly Hair', '🧑‍🦱': 'Person: Curly Hair',
+            '👩‍🦳': 'Woman: White Hair', '🧑‍🦳': 'Person: White Hair', '👩‍🦲': 'Woman: Bald', '🧑‍🦲': 'Person: Bald',
+            '👱‍♀️': 'Woman: Blond Hair', '👱‍♂️': 'Man: Blond Hair', '🧓': 'Older Person', '👴': 'Old Man', '👵': 'Old Woman',
+            '🙍': 'Person Frowning', '🙍‍♂️': 'Man Frowning', '🙍‍♀️': 'Woman Frowning',
+            '🙎': 'Person Pouting', '🙎‍♂️': 'Man Pouting', '🙎‍♀️': 'Woman Pouting',
+            '🙅': 'Person Gesturing NO', '🙅‍♂️': 'Man Gesturing NO', '🙅‍♀️': 'Woman Gesturing NO',
+            '🙆': 'Person Gesturing OK', '🙆‍♂️': 'Man Gesturing OK', '🙆‍♀️': 'Woman Gesturing OK',
+            '💁': 'Person Tipping Hand', '💁‍♂️': 'Man Tipping Hand', '💁‍♀️': 'Woman Tipping Hand',
+            '🙋': 'Person Raising Hand', '🙋‍♂️': 'Man Raising Hand', '🙋‍♀️': 'Woman Raising Hand',
+            '🧏': 'Deaf Person', '🧏‍♂️': 'Deaf Man', '🧏‍♀️': 'Deaf Woman',
+            '🤦': 'Person Facepalming', '🤦‍♂️': 'Man Facepalming', '🤦‍♀️': 'Woman Facepalming',
+            '🤷': 'Person Shrugging', '🤷‍♂️': 'Man Shrugging', '🤷‍♀️': 'Woman Shrugging',
+            '🧑‍⚕️': 'Health Worker', '👨‍⚕️': 'Man Health Worker', '👩‍⚕️': 'Woman Health Worker',
+            '🧑‍🎓': 'Student', '👨‍🎓': 'Man Student', '👩‍🎓': 'Woman Student',
+            '🧑‍🏫': 'Teacher', '👨‍🏫': 'Man Teacher', '👩‍🏫': 'Woman Teacher',
+            '🧑‍⚖️': 'Judge', '👨‍⚖️': 'Man Judge', '👩‍⚖️': 'Woman Judge',
+            '🧑‍🌾': 'Farmer', '👨‍🌾': 'Man Farmer', '👩‍🌾': 'Woman Farmer',
+            '🧑‍🍳': 'Cook', '👨‍🍳': 'Man Cook', '👩‍🍳': 'Woman Cook',
+            '🧑‍🔧': 'Mechanic', '👨‍🔧': 'Man Mechanic', '👩‍🔧': 'Woman Mechanic',
+            '🧑‍🏭': 'Factory Worker', '👨‍🏭': 'Man Factory Worker', '👩‍🏭': 'Woman Factory Worker',
+            '🧑‍💼': 'Office Worker', '👨‍💼': 'Man Office Worker', '👩‍💼': 'Woman Office Worker',
+            '🧑‍🔬': 'Scientist', '👨‍🔬': 'Man Scientist', '👩‍🔬': 'Woman Scientist',
+            '🧑‍💻': 'Technologist', '👨‍💻': 'Man Technologist', '👩‍💻': 'Woman Technologist',
+            '🧑‍🎤': 'Singer', '👨‍🎤': 'Man Singer', '👩‍🎤': 'Woman Singer',
+            '🧑‍🎨': 'Artist', '👨‍🎨': 'Man Artist', '👩‍🎨': 'Woman Artist',
+            '🧑‍✈️': 'Pilot', '👨‍✈️': 'Man Pilot', '👩‍✈️': 'Woman Pilot',
+            '🧑‍🚀': 'Astronaut', '👨‍🚀': 'Man Astronaut', '👩‍🚀': 'Woman Astronaut',
+            '🧑‍🚒': 'Firefighter', '👨‍🚒': 'Man Firefighter', '👩‍🚒': 'Woman Firefighter',
+            '👮': 'Police Officer', '👮‍♂️': 'Man Police Officer', '👮‍♀️': 'Woman Police Officer',
+            '🕵️': 'Detective', '🕵️‍♂️': 'Man Detective', '🕵️‍♀️': 'Woman Detective',
+            '💂': 'Guard', '💂‍♂️': 'Man Guard', '💂‍♀️': 'Woman Guard',
+            '🥷': 'Ninja', '👷': 'Construction Worker', '👷‍♂️': 'Man Construction Worker', '👷‍♀️': 'Woman Construction Worker',
+            '🤴': 'Prince', '👸': 'Princess', '👳': 'Person Wearing Turban', '👳‍♂️': 'Man Wearing Turban', '👳‍♀️': 'Woman Wearing Turban',
+            '👲': 'Person With Skullcap', '🧕': 'Woman With Headscarf', '🤵': 'Person in Tuxedo', '🤵‍♂️': 'Man in Tuxedo', '🤵‍♀️': 'Woman in Tuxedo',
+            '👰': 'Person With Veil', '👰‍♂️': 'Man With Veil', '👰‍♀️': 'Woman With Veil',
+            '🤰': 'Pregnant Woman', '🤱': 'Breast-Feeding', '👼': 'Baby Angel', '🎅': 'Santa Claus', '🤶': 'Mrs. Claus',
+            '🦸': 'Superhero', '🦸‍♂️': 'Man Superhero', '🦸‍♀️': 'Woman Superhero',
+            '🦹': 'Supervillain', '🦹‍♂️': 'Man Supervillain', '🦹‍♀️': 'Woman Supervillain',
+            '🧙': 'Mage', '🧙‍♂️': 'Man Mage', '🧙‍♀️': 'Woman Mage',
+            '🧚': 'Fairy', '🧚‍♂️': 'Man Fairy', '🧚‍♀️': 'Woman Fairy',
+            '🧛': 'Vampire', '🧛‍♂️': 'Man Vampire', '🧛‍♀️': 'Woman Vampire',
+            '🧜': 'Merperson', '🧜‍♂️': 'Merman', '🧜‍♀️': 'Mermaid',
+            '🧝': 'Elf', '🧝‍♂️': 'Man Elf', '🧝‍♀️': 'Woman Elf',
+            '🧞': 'Genie', '🧞‍♂️': 'Man Genie', '🧞‍♀️': 'Woman Genie',
+            '🧟': 'Zombie', '🧟‍♂️': 'Man Zombie', '🧟‍♀️': 'Woman Zombie',
+            '💆': 'Person Getting Massage', '💆‍♂️': 'Man Getting Massage', '💆‍♀️': 'Woman Getting Massage',
+            '💇': 'Person Getting Haircut', '💇‍♂️': 'Man Getting Haircut', '💇‍♀️': 'Woman Getting Haircut',
+            '🚶': 'Person Walking', '🚶‍♂️': 'Man Walking', '🚶‍♀️': 'Woman Walking',
+            '🧍': 'Person Standing', '🧍‍♂️': 'Man Standing', '🧍‍♀️': 'Woman Standing',
+            '🧎': 'Person Kneeling', '🧎‍♂️': 'Man Kneeling', '🧎‍♀️': 'Woman Kneeling',
+            '🏃': 'Person Running', '🏃‍♂️': 'Man Running', '🏃‍♀️': 'Woman Running',
+            '💃': 'Woman Dancing', '🕺': 'Man Dancing', '🕴️': 'Person in Suit Levitating',
+            '👯': 'People With Bunny Ears', '👯‍♂️': 'Men With Bunny Ears', '👯‍♀️': 'Women With Bunny Ears',
+            '🧘': 'Person in Lotus Position', '🧘‍♂️': 'Man in Lotus Position', '🧘‍♀️': 'Woman in Lotus Position',
+            '🛀': 'Person Taking Bath', '🛌': 'Person in Bed',
+            '👭': 'Women Holding Hands', '👫': 'Woman and Man Holding Hands', '👬': 'Men Holding Hands',
+            '💏': 'Kiss', '💑': 'Couple With Heart',
+            '👪': 'Family', '👨‍👩‍👧': 'Family: Man, Woman, Girl', '👨‍👩‍👧‍👦': 'Family: Man, Woman, Girl, Boy',
+            '👨‍👩‍👦‍👦': 'Family: Man, Woman, Boy, Boy', '👨‍👩‍👧‍👧': 'Family: Man, Woman, Girl, Girl',
+            '👩‍👩‍👦': 'Family: Woman, Woman, Boy', '👩‍👩‍👧': 'Family: Woman, Woman, Girl',
+            '👩‍👩‍👧‍👦': 'Family: Woman, Woman, Girl, Boy', '👩‍👩‍👦‍👦': 'Family: Woman, Woman, Boy, Boy',
+            '👩‍👩‍👧‍👧': 'Family: Woman, Woman, Girl, Girl',
+            '👨‍👨‍👦': 'Family: Man, Man, Boy', '👨‍👨‍👧': 'Family: Man, Man, Girl',
+            '👨‍👨‍👧‍👦': 'Family: Man, Man, Girl, Boy', '👨‍👨‍👦‍👦': 'Family: Man, Man, Boy, Boy',
+            '👨‍👨‍👧‍👧': 'Family: Man, Man, Girl, Girl',
+            '👩‍👦': 'Family: Woman, Boy', '👩‍👧': 'Family: Woman, Girl',
+            '👩‍👧‍👦': 'Family: Woman, Girl, Boy', '👩‍👦‍👦': 'Family: Woman, Boy, Boy', '👩‍👧‍👧': 'Family: Woman, Girl, Girl',
+            '👨‍👦': 'Family: Man, Boy', '👨‍👧': 'Family: Man, Girl',
+            '👨‍👧‍👦': 'Family: Man, Girl, Boy', '👨‍👦‍👦': 'Family: Man, Boy, Boy', '👨‍👧‍👧': 'Family: Man, Girl, Girl',
+            
+            // Animals & Nature (additional)
+            '🌲': 'Evergreen Tree', '🌳': 'Deciduous Tree', '🌴': 'Palm Tree', '🌵': 'Cactus', '🌾': 'Sheaf of Rice',
+            '🌿': 'Herb', '☘️': 'Shamrock', '🍀': 'Four Leaf Clover', '🍁': 'Maple Leaf', '🍂': 'Fallen Leaf',
+            '🍃': 'Leaf Fluttering in Wind', '🍄': 'Mushroom', '🐚': 'Spiral Shell', '🪨': 'Rock',
+            '💐': 'Bouquet', '🌷': 'Tulip', '🌹': 'Rose', '🥀': 'Wilted Flower', '🌺': 'Hibiscus',
+            '🌻': 'Sunflower', '🌼': 'Blossom',
+            '🌏': 'Globe Showing Asia-Australia', '🌎': 'Globe Showing Americas', '🌍': 'Globe Showing Europe-Africa',
+            '🌕': 'Full Moon', '🌖': 'Waning Gibbous Moon', '🌗': 'Last Quarter Moon', '🌘': 'Waning Crescent Moon',
+            '🌑': 'New Moon', '🌒': 'Waxing Crescent Moon', '🌓': 'First Quarter Moon', '🌔': 'Waxing Gibbous Moon',
+            '🌙': 'Crescent Moon', '🌚': 'New Moon Face', '🌛': 'First Quarter Moon Face', '🌜': 'Last Quarter Moon Face',
+            '🌝': 'Full Moon Face', '🌞': 'Sun With Face',
+            '⭐': 'Star', '🌟': 'Glowing Star', '💫': 'Dizzy', '✨': 'Sparkles', '☄️': 'Comet',
+            '💥': 'Collision', '🔥': 'Fire', '☀️': 'Sun', '🌤️': 'Sun Behind Small Cloud',
+            '⛅': 'Sun Behind Cloud', '🌥️': 'Sun Behind Large Cloud', '☁️': 'Cloud',
+            '🌦️': 'Sun Behind Rain Cloud', '🌧️': 'Cloud With Rain', '⛈️': 'Cloud With Lightning and Rain',
+            '🌩️': 'Cloud With Lightning', '⚡': 'High Voltage', '☔': 'Umbrella With Rain Drops',
+            '⛄': 'Snowman Without Snow', '❄️': 'Snowflake', '🌊': 'Water Wave', '💧': 'Droplet', '💦': 'Sweat Droplets',
+            
+            // Travel & Places
+            '🚗': 'Automobile', '🚕': 'Taxi', '🚙': 'Sport Utility Vehicle', '🚌': 'Bus', '🚎': 'Trolleybus',
+            '🏎️': 'Racing Car', '🚓': 'Police Car', '🚑': 'Ambulance', '🚒': 'Fire Engine', '🚐': 'Minibus',
+            '🛻': 'Pickup Truck', '🚚': 'Delivery Truck', '🚛': 'Articulated Lorry', '🚜': 'Tractor',
+            '🦯': 'White Cane', '🦽': 'Manual Wheelchair', '🦼': 'Motorized Wheelchair', '🛴': 'Kick Scooter',
+            '🚲': 'Bicycle', '🛵': 'Motor Scooter', '🏍️': 'Motorcycle', '🛺': 'Auto Rickshaw',
+            '🚨': 'Police Car Light', '🚔': 'Oncoming Police Car', '🚍': 'Oncoming Bus', '🚘': 'Oncoming Automobile', '🚖': 'Oncoming Taxi',
+            '🚡': 'Aerial Tramway', '🚠': 'Mountain Railway', '🚟': 'Suspension Railway',
+            '🚃': 'Tram Car', '🚋': 'Tram', '🚞': 'Mountain Railway', '🚝': 'Monorail',
+            '🚄': 'High-Speed Train', '🚅': 'Bullet Train', '🚈': 'Light Rail', '🚂': 'Locomotive',
+            '🚆': 'Train', '🚇': 'Metro', '🚊': 'Tram', '🚉': 'Station',
+            '✈️': 'Airplane', '🛫': 'Airplane Departure', '🛬': 'Airplane Arrival', '🛩️': 'Small Airplane',
+            '💺': 'Seat', '🚁': 'Helicopter', '🛸': 'Flying Saucer', '🚀': 'Rocket',
+            '🛎️': 'Bellhop Bell', '🧳': 'Luggage',
+            '⌛': 'Hourglass Done', '⏳': 'Hourglass Not Done', '⌚': 'Watch', '⏰': 'Alarm Clock',
+            '⏱️': 'Stopwatch', '⏲️': 'Timer Clock', '🕰️': 'Mantelpiece Clock',
+            '🕛': 'Twelve O\'Clock', '🕧': 'Twelve-Thirty', '🕐': 'One O\'Clock', '🕜': 'One-Thirty',
+            '🕑': 'Two O\'Clock', '🕝': 'Two-Thirty', '🕒': 'Three O\'Clock', '🕞': 'Three-Thirty',
+            '🕓': 'Four O\'Clock', '🕟': 'Four-Thirty', '🕔': 'Five O\'Clock', '🕠': 'Five-Thirty',
+            '🕕': 'Six O\'Clock', '🕡': 'Six-Thirty', '🕖': 'Seven O\'Clock', '🕢': 'Seven-Thirty',
+            '🕗': 'Eight O\'Clock', '🕣': 'Eight-Thirty', '🕘': 'Nine O\'Clock', '🕤': 'Nine-Thirty',
+            '🕙': 'Ten O\'Clock', '🕥': 'Ten-Thirty', '🕚': 'Eleven O\'Clock', '🕦': 'Eleven-Thirty',
+            '🌐': 'Globe With Meridians', '🗺️': 'World Map', '🧭': 'Compass',
+            '🏔️': 'Snow-Capped Mountain', '⛰️': 'Mountain', '🌋': 'Volcano', '🗻': 'Mount Fuji',
+            '🏕️': 'Camping', '🏖️': 'Beach With Umbrella', '🏜️': 'Desert', '🏝️': 'Desert Island',
+            '🏞️': 'National Park', '🏟️': 'Stadium', '🏛️': 'Classical Building', '🏗️': 'Building Construction',
+            '🧱': 'Brick', '🏘️': 'Houses', '🏚️': 'Derelict House', '🏠': 'House', '🏡': 'House With Garden',
+            '🏢': 'Office Building', '🏣': 'Japanese Post Office', '🏤': 'Post Office', '🏥': 'Hospital',
+            '🏦': 'Bank', '🏨': 'Hotel', '🏩': 'Love Hotel', '🏪': 'Convenience Store', '🏫': 'School',
+            '🏬': 'Department Store', '🏭': 'Factory', '🏯': 'Japanese Castle', '🏰': 'Castle',
+            '💒': 'Wedding', '🗼': 'Tokyo Tower', '🗽': 'Statue of Liberty', '⛪': 'Church',
+            '🕌': 'Mosque', '🛕': 'Hindu Temple', '🕍': 'Synagogue', '⛩️': 'Shinto Shrine',
+            '🕋': 'Kaaba', '⛲': 'Fountain', '⛺': 'Tent', '🌁': 'Foggy', '🌃': 'Night With Stars',
+            '🏙️': 'Cityscape', '🌄': 'Sunrise Over Mountains', '🌅': 'Sunrise', '🌆': 'Cityscape at Dusk',
+            '🌇': 'Sunset', '🌉': 'Bridge at Night', '♨️': 'Hot Springs', '🎠': 'Carousel Horse',
+            '🎡': 'Ferris Wheel', '🎢': 'Roller Coaster', '💈': 'Barber Pole', '🎪': 'Circus Tent',
+            '🚥': 'Horizontal Traffic Light', '🚦': 'Vertical Traffic Light', '🚧': 'Construction',
+            '⛽': 'Fuel Pump', '🛣️': 'Motorway', '🛤️': 'Railway Track', '🛢️': 'Oil Drum',
+            '🚏': 'Bus Stop', '🗿': 'Moai',
+            
+            // Activities
+            '⚽': 'Soccer Ball', '🏀': 'Basketball', '🏈': 'American Football', '⚾': 'Baseball',
+            '🥎': 'Softball', '🎾': 'Tennis', '🏐': 'Volleyball', '🏉': 'Rugby Football',
+            '🥏': 'Flying Disc', '🎱': 'Pool 8 Ball', '🏓': 'Ping Pong', '🏸': 'Badminton',
+            '🏒': 'Ice Hockey', '🏑': 'Field Hockey', '🥍': 'Lacrosse', '🏏': 'Cricket Game',
+            '🥅': 'Goal Net', '⛳': 'Flag in Hole', '🏹': 'Bow and Arrow', '🎣': 'Fishing Pole',
+            '🥊': 'Boxing Glove', '🥋': 'Martial Arts Uniform', '🎽': 'Running Shirt',
+            '🛹': 'Skateboard', '🛷': 'Sled', '⛸️': 'Ice Skate', '🥌': 'Curling Stone',
+            '🎿': 'Skis', '⛷️': 'Skier', '🏂': 'Snowboarder', '🪂': 'Parachute',
+            '🏋️': 'Person Lifting Weights', '🤼': 'People Wrestling', '🤸': 'Person Cartwheeling',
+            '🤺': 'Person Fencing', '⛹️': 'Person Bouncing Ball', '🤾': 'Person Playing Handball',
+            '🏌️': 'Person Golfing', '🏇': 'Horse Racing', '🏄': 'Person Surfing',
+            '🏊': 'Person Swimming', '🚣': 'Person Rowing Boat', '🧗': 'Person Climbing',
+            '🚵': 'Person Mountain Biking', '🚴': 'Person Biking',
+            '🏆': 'Trophy', '🥇': '1st Place Medal', '🥈': '2nd Place Medal', '🥉': '3rd Place Medal',
+            '🏅': 'Sports Medal', '🎖️': 'Military Medal', '🏵️': 'Rosette', '🎗️': 'Reminder Ribbon',
+            '🎫': 'Ticket', '🎟️': 'Admission Tickets', '🎪': 'Circus Tent',
+            '🤹': 'Person Juggling', '🎭': 'Performing Arts', '🩰': 'Ballet Shoes',
+            '🎨': 'Artist Palette', '🎬': 'Clapper Board', '🎤': 'Microphone', '🎧': 'Headphone',
+            '🎼': 'Musical Score', '🎹': 'Musical Keyboard', '🥁': 'Drum',
+            '🎷': 'Saxophone', '🎺': 'Trumpet', '🎸': 'Guitar', '🪕': 'Banjo', '🎻': 'Violin',
+            '🎲': 'Game Die', '♟️': 'Chess Pawn', '🎯': 'Direct Hit', '🎳': 'Bowling',
+            '🎮': 'Video Game', '🎰': 'Slot Machine', '🧩': 'Puzzle Piece',
+            
+            // Objects (additional)
+            '⌚': 'Watch', '📱': 'Mobile Phone', '📲': 'Mobile Phone With Arrow', '💻': 'Laptop',
+            '⌨️': 'Keyboard', '🖥️': 'Desktop Computer', '🖨️': 'Printer', '🖱️': 'Computer Mouse',
+            '🖲️': 'Trackball', '🕹️': 'Joystick', '🗜️': 'Clamp', '💾': 'Floppy Disk',
+            '💿': 'Optical Disk', '📀': 'DVD', '📼': 'Videocassette',
+            '📷': 'Camera', '📸': 'Camera With Flash', '📹': 'Video Camera',
+            '🎥': 'Movie Camera', '📽️': 'Film Projector', '🎞️': 'Film Frames',
+            '📞': 'Telephone Receiver', '☎️': 'Telephone', '📟': 'Pager', '📠': 'Fax Machine',
+            '📺': 'Television', '📻': 'Radio',
+            '🎙️': 'Studio Microphone', '🎚️': 'Level Slider', '🎛️': 'Control Knobs',
+            '📡': 'Satellite Antenna', '🔋': 'Battery', '🔌': 'Electric Plug',
+            '💡': 'Light Bulb', '🔦': 'Flashlight', '🕯️': 'Candle', '🪔': 'Diya Lamp',
+            '🧯': 'Fire Extinguisher', '🛢️': 'Oil Drum',
+            '💸': 'Money With Wings', '💵': 'Dollar Banknote', '💴': 'Yen Banknote',
+            '💶': 'Euro Banknote', '💷': 'Pound Banknote', '💰': 'Money Bag',
+            '💳': 'Credit Card', '💎': 'Gem Stone', '⚖️': 'Balance Scale', '🪜': 'Ladder',
+            '🧰': 'Toolbox', '🪛': 'Screwdriver', '🔧': 'Wrench', '🔨': 'Hammer',
+            '⚒️': 'Hammer and Pick', '🛠️': 'Hammer and Wrench', '⛏️': 'Pick',
+            '🪚': 'Carpentry Saw', '🔩': 'Nut and Bolt', '⚙️': 'Gear', '🪤': 'Mouse Trap',
+            '⛓️': 'Chains', '🧲': 'Magnet', '🔫': 'Water Pistol', '💣': 'Bomb',
+            '🧨': 'Firecracker', '🪓': 'Axe', '🔪': 'Kitchen Knife', '🗡️': 'Dagger',
+            '⚔️': 'Crossed Swords', '🛡️': 'Shield', '🚬': 'Cigarette',
+            '⚰️': 'Coffin', '🪦': 'Headstone', '⚱️': 'Funeral Urn', '🏺': 'Amphora',
+            '🔮': 'Crystal Ball', '📿': 'Prayer Beads', '🧿': 'Nazar Amulet', '💈': 'Barber Pole',
+            '⚗️': 'Alembic', '🔭': 'Telescope', '🔬': 'Microscope', '🕳️': 'Hole',
+            '🩹': 'Adhesive Bandage', '🩺': 'Stethoscope', '💊': 'Pill', '💉': 'Syringe',
+            '🩸': 'Drop of Blood', '🧬': 'DNA', '🦠': 'Microbe', '🧫': 'Petri Dish',
+            '🧪': 'Test Tube', '🌡️': 'Thermometer', '🪠': 'Plunger',
+            '🚪': 'Door', '🛋️': 'Couch and Lamp', '🛏️': 'Bed',
+            '🛍️': 'Shopping Bags', '✉️': 'Envelope', '📩': 'Envelope With Arrow',
+            '📨': 'Incoming Envelope', '📧': 'E-Mail', '💌': 'Love Letter',
+            '📥': 'Inbox Tray', '📤': 'Outbox Tray', '📦': 'Package',
+            '🏷️': 'Label', '📪': 'Closed Mailbox With Lowered Flag', '📫': 'Closed Mailbox With Raised Flag',
+            '📬': 'Open Mailbox With Raised Flag', '📭': 'Open Mailbox With Lowered Flag',
+            '📮': 'Postbox', '📯': 'Postal Horn', '📜': 'Scroll', '📃': 'Page With Curl',
+            '📄': 'Page Facing Up', '📑': 'Bookmark Tabs', '🧾': 'Receipt',
+            '📊': 'Bar Chart', '📈': 'Chart Increasing', '📉': 'Chart Decreasing',
+            '🗒️': 'Spiral Notepad', '🗓️': 'Spiral Calendar', '📆': 'Tear-Off Calendar',
+            '📅': 'Calendar', '📇': 'Card Index', '🗃️': 'Card File Box',
+            '🗳️': 'Ballot Box With Ballot', '🗄️': 'File Cabinet', '📋': 'Clipboard',
+            '📁': 'File Folder', '📂': 'Open File Folder', '🗂️': 'Card Index Dividers',
+            '📌': 'Pushpin', '📍': 'Round Pushpin', '📎': 'Paperclip',
+            '🖇️': 'Linked Paperclips', '📏': 'Straight Ruler', '📐': 'Triangular Ruler',
+            '✂️': 'Scissors', '🔒': 'Locked', '🔓': 'Unlocked',
+            '🔏': 'Locked With Pen', '🔐': 'Locked With Key', '🔑': 'Key', '🗝️': 'Old Key',
+            '🪝': 'Hook', '🪡': 'Sewing Needle', '🧵': 'Thread', '🧶': 'Yarn', '🪢': 'Knot',
+            
+            // Symbols
+            '❤️': 'Red Heart', '🧡': 'Orange Heart', '💛': 'Yellow Heart', '💚': 'Green Heart',
+            '💙': 'Blue Heart', '💜': 'Purple Heart', '🖤': 'Black Heart', '🤍': 'White Heart',
+            '🤎': 'Brown Heart', '💔': 'Broken Heart', '❣️': 'Heart Exclamation',
+            '💕': 'Two Hearts', '💞': 'Revolving Hearts', '💓': 'Beating Heart',
+            '💗': 'Growing Heart', '💖': 'Sparkling Heart', '💘': 'Heart With Arrow',
+            '💝': 'Heart With Ribbon', '💟': 'Heart Decoration',
+            '☮️': 'Peace Symbol', '✝️': 'Latin Cross', '☪️': 'Star and Crescent',
+            '🕉️': 'Om', '☸️': 'Wheel of Dharma', '✡️': 'Star of David',
+            '🔯': 'Dotted Six-Pointed Star', '🕎': 'Menorah', '☯️': 'Yin Yang',
+            '☦️': 'Orthodox Cross', '🛐': 'Place of Worship', '⛎': 'Ophiuchus',
+            '♈': 'Aries', '♉': 'Taurus', '♊': 'Gemini', '♋': 'Cancer',
+            '♌': 'Leo', '♍': 'Virgo', '♎': 'Libra', '♏': 'Scorpio',
+            '♐': 'Sagittarius', '♑': 'Capricorn', '♒': 'Aquarius', '♓': 'Pisces',
+            '🆔': 'ID Button', '⚛️': 'Atom Symbol', '🉑': 'Japanese "Acceptable" Button',
+            '☢️': 'Radioactive', '☣️': 'Biohazard', '📴': 'Mobile Phone Off',
+            '📳': 'Vibration Mode', '🈶': 'Japanese "Not Free of Charge" Button',
+            '🈚': 'Japanese "Free of Charge" Button', '🈸': 'Japanese "Application" Button',
+            '🈺': 'Japanese "Open for Business" Button', '🈷️': 'Japanese "Monthly Amount" Button',
+            '✴️': 'Eight-Pointed Star', '🆚': 'VS Button', '💮': 'White Flower',
+            '🉐': 'Japanese "Bargain" Button', '㊙️': 'Japanese "Secret" Button',
+            '㊗️': 'Japanese "Congratulations" Button', '🈴': 'Japanese "Passing Grade" Button',
+            '🈵': 'Japanese "No Vacancy" Button', '🈹': 'Japanese "Discount" Button',
+            '🈲': 'Japanese "Prohibited" Button', '🅰️': 'A Button (Blood Type)',
+            '🅱️': 'B Button (Blood Type)', '🆎': 'AB Button (Blood Type)',
+            '🆑': 'CL Button', '🅾️': 'O Button (Blood Type)', '🆘': 'SOS Button',
+            '❌': 'Cross Mark', '⭕': 'Heavy Large Circle', '🛑': 'Stop Sign',
+            '⛔': 'No Entry', '📛': 'Name Badge', '🚫': 'Prohibited',
+            '💯': 'Hundred Points', '💢': 'Anger Symbol', '🚷': 'No Pedestrians',
+            '🚯': 'No Littering', '🚳': 'No Bicycles', '🚱': 'Non-Potable Water',
+            '🔞': 'No One Under Eighteen', '📵': 'No Mobile Phones', '🚭': 'No Smoking',
+            '❗': 'Exclamation Mark', '❓': 'Question Mark', '❕': 'White Exclamation Mark',
+            '❔': 'White Question Mark', '‼️': 'Double Exclamation Mark', '⁉️': 'Exclamation Question Mark',
+            '🔅': 'Dim Button', '🔆': 'Bright Button', '〽️': 'Part Alternation Mark',
+            '⚠️': 'Warning', '🚸': 'Children Crossing', '🔱': 'Trident Emblem',
+            '⚜️': 'Fleur-de-lis', '🔰': 'Japanese Symbol for Beginner', '♻️': 'Recycling Symbol',
+            '✅': 'Check Mark Button', '🈯': 'Japanese "Reserved" Button', '💹': 'Chart Increasing With Yen',
+            '❇️': 'Sparkle', '✳️': 'Eight-Spoked Asterisk', '❎': 'Cross Mark Button',
+            '💠': 'Diamond With a Dot', 'Ⓜ️': 'Circled M', '🌀': 'Cyclone',
+            '💤': 'ZZZ', '🏧': 'ATM Sign', '🚾': 'Water Closet', '♿': 'Wheelchair Symbol',
+            '🅿️': 'P Button', '🈳': 'Japanese "Vacancy" Button', '🈂️': 'Japanese "Service Charge" Button',
+            '🛂': 'Passport Control', '🛃': 'Customs', '🛄': 'Baggage Claim',
+            '🛅': 'Left Luggage', '🚹': 'Men\'s Room', '🚺': 'Women\'s Room',
+            '🚼': 'Baby Symbol', '🚻': 'Restroom', '🚮': 'Litter in Bin Sign',
+            '🎦': 'Cinema', '📶': 'Antenna Bars', '🈁': 'Japanese "Here" Button',
+            '🔣': 'Input Symbols', '🔄': 'Counterclockwise Arrows Button', '🔤': 'Input Latin Letters',
+            'ℹ️': 'Information', '🔡': 'Input Latin Lowercase', '🔢': 'Input Numbers',
+            '🔠': 'Input Latin Uppercase', '#️⃣': 'Keycap: #', '*️⃣': 'Keycap: *',
+            '0️⃣': 'Keycap: 0', '1️⃣': 'Keycap: 1', '2️⃣': 'Keycap: 2', '3️⃣': 'Keycap: 3',
+            '4️⃣': 'Keycap: 4', '5️⃣': 'Keycap: 5', '6️⃣': 'Keycap: 6', '7️⃣': 'Keycap: 7',
+            '8️⃣': 'Keycap: 8', '9️⃣': 'Keycap: 9', '🔟': 'Keycap: 10',
+            '🆒': 'COOL Button', '🆓': 'FREE Button', '🆕': 'NEW Button',
+            '🆖': 'NG Button', '🆗': 'OK Button', '🆙': 'UP! Button',
+            '🔴': 'Red Circle', '🟠': 'Orange Circle', '🟡': 'Yellow Circle',
+            '🟢': 'Green Circle', '🔵': 'Blue Circle', '🟣': 'Purple Circle',
+            '⚫': 'Black Circle', '⚪': 'White Circle', '🟤': 'Brown Circle',
+            '🔶': 'Large Orange Diamond', '🔷': 'Large Blue Diamond',
+            '🔸': 'Small Orange Diamond', '🔹': 'Small Blue Diamond',
+            '🔺': 'Red Triangle Pointed Up', '🔻': 'Red Triangle Pointed Down',
+            '🔘': 'Radio Button', '🔳': 'White Square Button', '🔲': 'Black Square Button',
+            '▪️': 'Black Small Square', '▫️': 'White Small Square',
+            '◾': 'Black Medium-Small Square', '◽': 'White Medium-Small Square',
+            '◼️': 'Black Medium Square', '◻️': 'White Medium Square',
+            '🟥': 'Red Square', '🟧': 'Orange Square', '🟨': 'Yellow Square',
+            '🟩': 'Green Square', '🟦': 'Blue Square', '🟪': 'Purple Square',
+            '⬛': 'Black Large Square', '⬜': 'White Large Square', '🟫': 'Brown Square',
+            '🔈': 'Speaker Low Volume', '🔇': 'Muted', '🔉': 'Speaker Medium Volume',
+            '🔊': 'Speaker High Volume', '🔔': 'Bell', '🔕': 'Bell With Slash',
+            '📣': 'Megaphone', '📢': 'Loudspeaker', '💬': 'Speech Balloon',
+            '💭': 'Thought Balloon', '🗯️': 'Right Anger Bubble',
+            '♠️': 'Spade Suit', '♣️': 'Club Suit', '♥️': 'Heart Suit', '♦️': 'Diamond Suit',
+            '🃏': 'Joker', '🎴': 'Flower Playing Cards', '🀄': 'Mahjong Red Dragon',
+            '🕐': 'One O\'Clock', '🕑': 'Two O\'Clock', '🕒': 'Three O\'Clock',
+            '🕓': 'Four O\'Clock', '🕔': 'Five O\'Clock', '🕕': 'Six O\'Clock',
+            '🕖': 'Seven O\'Clock', '🕗': 'Eight O\'Clock', '🕘': 'Nine O\'Clock',
+            '🕙': 'Ten O\'Clock', '🕚': 'Eleven O\'Clock', '🕛': 'Twelve O\'Clock',
+            '🕜': 'One-Thirty', '🕝': 'Two-Thirty', '🕞': 'Three-Thirty',
+            '🕟': 'Four-Thirty', '🕠': 'Five-Thirty', '🕡': 'Six-Thirty',
+            '🕢': 'Seven-Thirty', '🕣': 'Eight-Thirty', '🕤': 'Nine-Thirty',
+            '🕥': 'Ten-Thirty', '🕦': 'Eleven-Thirty', '🕧': 'Twelve-Thirty',
+            
+            // Flags
+            '🏳️': 'White Flag', '🏴': 'Black Flag', '🏁': 'Chequered Flag', '🚩': 'Triangular Flag',
+            '🏳️‍🌈': 'Rainbow Flag', '🏳️‍⚧️': 'Transgender Flag',
+            '🇦🇨': 'Flag: Ascension Island', '🇦🇩': 'Flag: Andorra', '🇦🇪': 'Flag: United Arab Emirates',
+            '🇦🇫': 'Flag: Afghanistan', '🇦🇬': 'Flag: Antigua & Barbuda', '🇦🇮': 'Flag: Anguilla',
+            '🇦🇱': 'Flag: Albania', '🇦🇲': 'Flag: Armenia', '🇦🇴': 'Flag: Angola',
+            '🇦🇶': 'Flag: Antarctica', '🇦🇷': 'Flag: Argentina', '🇦🇸': 'Flag: American Samoa',
+            '🇦🇹': 'Flag: Austria', '🇦🇺': 'Flag: Australia', '🇦🇼': 'Flag: Aruba',
+            '🇦🇽': 'Flag: Åland Islands', '🇦🇿': 'Flag: Azerbaijan',
+            '🇧🇦': 'Flag: Bosnia & Herzegovina', '🇧🇧': 'Flag: Barbados', '🇧🇩': 'Flag: Bangladesh',
+            '🇧🇪': 'Flag: Belgium', '🇧🇫': 'Flag: Burkina Faso', '🇧🇬': 'Flag: Bulgaria',
+            '🇧🇭': 'Flag: Bahrain', '🇧🇮': 'Flag: Burundi', '🇧🇯': 'Flag: Benin',
+            '🇧🇱': 'Flag: St. Barthélemy', '🇧🇲': 'Flag: Bermuda', '🇧🇳': 'Flag: Brunei',
+            '🇧🇴': 'Flag: Bolivia', '🇧🇶': 'Flag: Caribbean Netherlands', '🇧🇷': 'Flag: Brazil',
+            '🇧🇸': 'Flag: Bahamas', '🇧🇹': 'Flag: Bhutan', '🇧🇻': 'Flag: Bouvet Island',
+            '🇧🇼': 'Flag: Botswana', '🇧🇾': 'Flag: Belarus', '🇧🇿': 'Flag: Belize',
+            '🇨🇦': 'Flag: Canada', '🇨🇨': 'Flag: Cocos (Keeling) Islands', '🇨🇩': 'Flag: Congo - Kinshasa',
+            '🇨🇫': 'Flag: Central African Republic', '🇨🇬': 'Flag: Congo - Brazzaville', '🇨🇭': 'Flag: Switzerland',
+            '🇨🇮': 'Flag: Côte d\'Ivoire', '🇨🇰': 'Flag: Cook Islands', '🇨🇱': 'Flag: Chile',
+            '🇨🇲': 'Flag: Cameroon', '🇨🇳': 'Flag: China', '🇨🇴': 'Flag: Colombia',
+            '🇨🇵': 'Flag: Clipperton Island', '🇨🇷': 'Flag: Costa Rica', '🇨🇺': 'Flag: Cuba',
+            '🇨🇻': 'Flag: Cape Verde', '🇨🇼': 'Flag: Curaçao', '🇨🇽': 'Flag: Christmas Island',
+            '🇨🇾': 'Flag: Cyprus', '🇨🇿': 'Flag: Czechia',
+            '🇩🇪': 'Flag: Germany', '🇩🇬': 'Flag: Diego Garcia', '🇩🇯': 'Flag: Djibouti',
+            '🇩🇰': 'Flag: Denmark', '🇩🇲': 'Flag: Dominica', '🇩🇴': 'Flag: Dominican Republic',
+            '🇩🇿': 'Flag: Algeria',
+            '🇪🇦': 'Flag: Ceuta & Melilla', '🇪🇨': 'Flag: Ecuador', '🇪🇪': 'Flag: Estonia',
+            '🇪🇬': 'Flag: Egypt', '🇪🇭': 'Flag: Western Sahara', '🇪🇷': 'Flag: Eritrea',
+            '🇪🇸': 'Flag: Spain', '🇪🇹': 'Flag: Ethiopia', '🇪🇺': 'Flag: European Union',
+            '🇫🇮': 'Flag: Finland', '🇫🇯': 'Flag: Fiji', '🇫🇰': 'Flag: Falkland Islands',
+            '🇫🇲': 'Flag: Micronesia', '🇫🇴': 'Flag: Faroe Islands', '🇫🇷': 'Flag: France',
+            '🇬🇦': 'Flag: Gabon', '🇬🇧': 'Flag: United Kingdom', '🇬🇩': 'Flag: Grenada',
+            '🇬🇪': 'Flag: Georgia', '🇬🇫': 'Flag: French Guiana', '🇬🇬': 'Flag: Guernsey',
+            '🇬🇭': 'Flag: Ghana', '🇬🇮': 'Flag: Gibraltar', '🇬🇱': 'Flag: Greenland',
+            '🇬🇲': 'Flag: Gambia', '🇬🇳': 'Flag: Guinea', '🇬🇵': 'Flag: Guadeloupe',
+            '🇬🇶': 'Flag: Equatorial Guinea', '🇬🇷': 'Flag: Greece', '🇬🇸': 'Flag: South Georgia & South Sandwich Islands',
+            '🇬🇹': 'Flag: Guatemala', '🇬🇺': 'Flag: Guam', '🇬🇼': 'Flag: Guinea-Bissau',
+            '🇬🇾': 'Flag: Guyana',
+            '🇭🇰': 'Flag: Hong Kong SAR China', '🇭🇲': 'Flag: Heard & McDonald Islands', '🇭🇳': 'Flag: Honduras',
+            '🇭🇷': 'Flag: Croatia', '🇭🇹': 'Flag: Haiti', '🇭🇺': 'Flag: Hungary',
+            '🇮🇨': 'Flag: Canary Islands', '🇮🇩': 'Flag: Indonesia', '🇮🇪': 'Flag: Ireland',
+            '🇮🇱': 'Flag: Israel', '🇮🇲': 'Flag: Isle of Man', '🇮🇳': 'Flag: India',
+            '🇮🇴': 'Flag: British Indian Ocean Territory', '🇮🇶': 'Flag: Iraq', '🇮🇷': 'Flag: Iran',
+            '🇮🇸': 'Flag: Iceland', '🇮🇹': 'Flag: Italy',
+            '🇯🇪': 'Flag: Jersey', '🇯🇲': 'Flag: Jamaica', '🇯🇴': 'Flag: Jordan',
+            '🇯🇵': 'Flag: Japan',
+            '🇰🇪': 'Flag: Kenya', '🇰🇬': 'Flag: Kyrgyzstan', '🇰🇭': 'Flag: Cambodia',
+            '🇰🇮': 'Flag: Kiribati', '🇰🇲': 'Flag: Comoros', '🇰🇳': 'Flag: St. Kitts & Nevis',
+            '🇰🇵': 'Flag: North Korea', '🇰🇷': 'Flag: South Korea', '🇰🇼': 'Flag: Kuwait',
+            '🇰🇾': 'Flag: Cayman Islands', '🇰🇿': 'Flag: Kazakhstan',
+            '🇱🇦': 'Flag: Laos', '🇱🇧': 'Flag: Lebanon', '🇱🇨': 'Flag: St. Lucia',
+            '🇱🇮': 'Flag: Liechtenstein', '🇱🇰': 'Flag: Sri Lanka', '🇱🇷': 'Flag: Liberia',
+            '🇱🇸': 'Flag: Lesotho', '🇱🇹': 'Flag: Lithuania', '🇱🇺': 'Flag: Luxembourg',
+            '🇱🇻': 'Flag: Latvia', '🇱🇾': 'Flag: Libya',
+            '🇲🇦': 'Flag: Morocco', '🇲🇨': 'Flag: Monaco', '🇲🇩': 'Flag: Moldova',
+            '🇲🇪': 'Flag: Montenegro', '🇲🇫': 'Flag: St. Martin', '🇲🇬': 'Flag: Madagascar',
+            '🇲🇭': 'Flag: Marshall Islands', '🇲🇰': 'Flag: North Macedonia', '🇲🇱': 'Flag: Mali',
+            '🇲🇲': 'Flag: Myanmar (Burma)', '🇲🇳': 'Flag: Mongolia', '🇲🇴': 'Flag: Macao SAR China',
+            '🇲🇵': 'Flag: Northern Mariana Islands', '🇲🇶': 'Flag: Martinique', '🇲🇷': 'Flag: Mauritania',
+            '🇲🇸': 'Flag: Montserrat', '🇲🇹': 'Flag: Malta', '🇲🇺': 'Flag: Mauritius',
+            '🇲🇻': 'Flag: Maldives', '🇲🇼': 'Flag: Malawi', '🇲🇽': 'Flag: Mexico',
+            '🇲🇾': 'Flag: Malaysia', '🇲🇿': 'Flag: Mozambique',
+            '🇳🇦': 'Flag: Namibia', '🇳🇨': 'Flag: New Caledonia', '🇳🇪': 'Flag: Niger',
+            '🇳🇫': 'Flag: Norfolk Island', '🇳🇬': 'Flag: Nigeria', '🇳🇮': 'Flag: Nicaragua',
+            '🇳🇱': 'Flag: Netherlands', '🇳🇴': 'Flag: Norway', '🇳🇵': 'Flag: Nepal',
+            '🇳🇷': 'Flag: Nauru', '🇳🇺': 'Flag: Niue', '🇳🇿': 'Flag: New Zealand',
+            '🇴🇲': 'Flag: Oman',
+            '🇵🇦': 'Flag: Panama', '🇵🇪': 'Flag: Peru', '🇵🇫': 'Flag: French Polynesia',
+            '🇵🇬': 'Flag: Papua New Guinea', '🇵🇭': 'Flag: Philippines', '🇵🇰': 'Flag: Pakistan',
+            '🇵🇱': 'Flag: Poland', '🇵🇲': 'Flag: St. Pierre & Miquelon', '🇵🇳': 'Flag: Pitcairn Islands',
+            '🇵🇷': 'Flag: Puerto Rico', '🇵🇸': 'Flag: Palestinian Territories', '🇵🇹': 'Flag: Portugal',
+            '🇵🇼': 'Flag: Palau', '🇵🇾': 'Flag: Paraguay',
+            '🇶🇦': 'Flag: Qatar', '🇷🇪': 'Flag: Réunion', '🇷🇴': 'Flag: Romania',
+            '🇷🇸': 'Flag: Serbia', '🇷🇺': 'Flag: Russia', '🇷🇼': 'Flag: Rwanda',
+            '🇸🇦': 'Flag: Saudi Arabia', '🇸🇧': 'Flag: Solomon Islands', '🇸🇨': 'Flag: Seychelles',
+            '🇸🇩': 'Flag: Sudan', '🇸🇪': 'Flag: Sweden', '🇸🇬': 'Flag: Singapore',
+            '🇸🇭': 'Flag: St. Helena', '🇸🇮': 'Flag: Slovenia', '🇸🇯': 'Flag: Svalbard & Jan Mayen',
+            '🇸🇰': 'Flag: Slovakia', '🇸🇱': 'Flag: Sierra Leone', '🇸🇲': 'Flag: San Marino',
+            '🇸🇳': 'Flag: Senegal', '🇸🇴': 'Flag: Somalia', '🇸🇷': 'Flag: Suriname',
+            '🇸🇸': 'Flag: South Sudan', '🇸🇹': 'Flag: São Tomé & Príncipe', '🇸🇻': 'Flag: El Salvador',
+            '🇸🇽': 'Flag: Sint Maarten', '🇸🇾': 'Flag: Syria', '🇸🇿': 'Flag: Eswatini',
+            '🇹🇦': 'Flag: Tristan da Cunha', '🇹🇨': 'Flag: Turks & Caicos Islands', '🇹🇩': 'Flag: Chad',
+            '🇹🇫': 'Flag: French Southern Territories', '🇹🇬': 'Flag: Togo', '🇹🇭': 'Flag: Thailand',
+            '🇹🇯': 'Flag: Tajikistan', '🇹🇰': 'Flag: Tokelau', '🇹🇱': 'Flag: Timor-Leste',
+            '🇹🇲': 'Flag: Turkmenistan', '🇹🇳': 'Flag: Tunisia', '🇹🇴': 'Flag: Tonga',
+            '🇹🇷': 'Flag: Turkey', '🇹🇹': 'Flag: Trinidad & Tobago', '🇹🇻': 'Flag: Tuvalu',
+            '🇹🇼': 'Flag: Taiwan', '🇹🇿': 'Flag: Tanzania',
+            '🇺🇦': 'Flag: Ukraine', '🇺🇬': 'Flag: Uganda', '🇺🇲': 'Flag: U.S. Outlying Islands',
+            '🇺🇳': 'Flag: United Nations', '🇺🇸': 'Flag: United States', '🇺🇾': 'Flag: Uruguay',
+            '🇺🇿': 'Flag: Uzbekistan',
+            '🇻🇦': 'Flag: Vatican City', '🇻🇨': 'Flag: St. Vincent & Grenadines', '🇻🇪': 'Flag: Venezuela',
+            '🇻🇬': 'Flag: British Virgin Islands', '🇻🇮': 'Flag: U.S. Virgin Islands', '🇻🇳': 'Flag: Vietnam',
+            '🇻🇺': 'Flag: Vanuatu', '🇼🇫': 'Flag: Wallis & Futuna', '🇼🇸': 'Flag: Samoa',
+            '🇾🇪': 'Flag: Yemen', '🇾🇹': 'Flag: Mayotte',             '🇿🇦': 'Flag: South Africa',
+            '🇿🇲': 'Flag: Zambia', '🇿🇼': 'Flag: Zimbabwe',
+            
+            // Regional Indicator Symbols (Flag Letter Components)
+            '🇦': 'Regional Indicator Symbol Letter A', '🇧': 'Regional Indicator Symbol Letter B',
+            '🇨': 'Regional Indicator Symbol Letter C', '🇩': 'Regional Indicator Symbol Letter D',
+            '🇪': 'Regional Indicator Symbol Letter E', '🇫': 'Regional Indicator Symbol Letter F',
+            '🇬': 'Regional Indicator Symbol Letter G', '🇭': 'Regional Indicator Symbol Letter H',
+            '🇮': 'Regional Indicator Symbol Letter I', '🇯': 'Regional Indicator Symbol Letter J',
+            '🇰': 'Regional Indicator Symbol Letter K', '🇱': 'Regional Indicator Symbol Letter L',
+            '🇲': 'Regional Indicator Symbol Letter M', '🇳': 'Regional Indicator Symbol Letter N',
+            '🇴': 'Regional Indicator Symbol Letter O', '🇵': 'Regional Indicator Symbol Letter P',
+            '🇶': 'Regional Indicator Symbol Letter Q', '🇷': 'Regional Indicator Symbol Letter R',
+            '🇸': 'Regional Indicator Symbol Letter S', '🇹': 'Regional Indicator Symbol Letter T',
+            '🇺': 'Regional Indicator Symbol Letter U', '🇻': 'Regional Indicator Symbol Letter V',
+            '🇼': 'Regional Indicator Symbol Letter W', '🇽': 'Regional Indicator Symbol Letter X',
+            '🇾': 'Regional Indicator Symbol Letter Y', '🇿': 'Regional Indicator Symbol Letter Z',
+            
+            // Additional missing emojis
+            '🚢': 'Ship', '🚤': 'Speedboat', '🛥️': 'Motor Boat', '⛵': 'Sailboat',
+            '🛎️': 'Bellhop Bell', '🪝': 'Hook', '🪡': 'Sewing Needle',
+            '🧵': 'Thread', '🧶': 'Yarn', '🪢': 'Knot',
+            '🀄': 'Mahjong Red Dragon', '🃏': 'Joker',
+            '🅰️': 'A Button (Blood Type)', '🅱️': 'B Button (Blood Type)',
+            '🅾️': 'O Button (Blood Type)', '🅿️': 'P Button',
+            '🆎': 'AB Button (Blood Type)', '🆑': 'CL Button',
+            '🆒': 'COOL Button', '🆓': 'FREE Button', '🆔': 'ID Button',
+            '🆕': 'NEW Button', '🆖': 'NG Button', '🆗': 'OK Button',
+            '🆘': 'SOS Button', '🆙': 'UP! Button', '🆚': 'VS Button',
+            '🈁': 'Japanese "Here" Button', '🈂️': 'Japanese "Service Charge" Button',
+            '🈚': 'Japanese "Free of Charge" Button', '🈯': 'Japanese "Reserved" Button',
+            '🈲': 'Japanese "Prohibited" Button', '🈳': 'Japanese "Vacancy" Button',
+            '🈴': 'Japanese "Passing Grade" Button', '🈵': 'Japanese "No Vacancy" Button',
+            
+            // Additional emojis (non-variant versions and others)
+            '🅰': 'A Button (Blood Type)',
+            '🅱': 'B Button (Blood Type)',
+            '🅾': 'O Button (Blood Type)',
+            '🅿': 'P Button',
+            '🈂': 'Japanese "Service Charge" Button',
+            '🈷': 'Japanese "Monthly Amount" Button',
+            '🌈': 'Rainbow',
+            '🌡': 'Thermometer',
+            '🌤': 'Sun Behind Small Cloud',
+            '🌥': 'Sun Behind Large Cloud',
+            '🌦': 'Sun Behind Rain Cloud',
+            '🌧': 'Cloud With Rain',
+            '🌩': 'Cloud With Lightning',
+            '🌫': 'Fog',
+            '🌶': 'Hot Pepper',
+            '🎓': 'Graduation Cap',
+            '🎖': 'Military Medal',
+            '🎗': 'Reminder Ribbon',
+            '🎙': 'Studio Microphone',
+            '🎚': 'Level Slider',
+            '🎛': 'Control Knobs',
+            '🎞': 'Film Frames',
+            '🎟': 'Admission Tickets',
+            '🏋': 'Person Lifting Weights',
+            '🏌': 'Person Golfing',
+            '🏍': 'Motorcycle',
+            '🏎': 'Racing Car',
+            '🏔': 'Snow-Capped Mountain',
+            '🏕': 'Camping',
+            '🏖': 'Beach With Umbrella',
+            '🏗': 'Building Construction',
+            '🏘': 'Houses',
+            '🏙': 'Cityscape',
+            '🏚': 'Derelict House',
+            '🏛': 'Classical Building',
+            '🏜': 'Desert',
+            '🏝': 'Desert Island',
+            '🏞': 'National Park',
+            '🏟': 'Stadium',
+            '🏳': 'White Flag',
+            '🏵': 'Rosette',
+            '🏷': 'Label',
+            '🐿': 'Chipmunk',
+            '👁': 'Eye',
+            '💼': 'Briefcase',
+            '📽': 'Film Projector',
+            '🔗': 'Link',
+            '🕉': 'Om',
+            '🕊': 'Dove of Peace',
+            '🕯': 'Candle',
+            '🕰': 'Mantelpiece Clock',
+            '🕳': 'Hole',
+            '🕴': 'Man in Business Suit Levitating',
+            '🕵': 'Detective',
+            '🕷': 'Spider',
+            '🕹': 'Joystick',
+            '🖇': 'Linked Paperclips',
+            '🖐': 'Hand With Fingers Splayed',
+            '🖥': 'Desktop Computer',
+            '🖨': 'Printer',
+            '🖱': 'Computer Mouse',
+            '🖲': 'Trackball',
+            '🖼': 'Framed Picture',
+            '🗂': 'Card Index Dividers',
+            '🗃': 'Card File Box',
+            '🗄': 'File Cabinet',
+            '🗑': 'Wastebasket',
+            '🗒': 'Spiral Notepad',
+            '🗓': 'Spiral Calendar',
+            '🗜': 'Compression',
+            '🗝': 'Old Key',
+            '🗡': 'Dagger',
+            '🗯': 'Right Anger Bubble',
+            '🗳': 'Ballot Box With Ballot',
+            '🗺': 'World Map',
+            '🛋': 'Couch and Lamp',
+            '🛍': 'Shopping Bags',
+            '🛎': 'Bellhop Bell',
+            '🛏': 'Bed',
+            '🛠': 'Hammer and Wrench',
+            '🛡': 'Shield',
+            '🛢': 'Oil Drum',
+            '🛣': 'Motorway',
+            '🛤': 'Railway Track',
+            '🛩': 'Small Airplane',
         };
         
         return emojiNames[emoji] || emoji;
+    }
+    
+    buildEmojiKeywordMap() {
+        // Generate comprehensive keyword map from emoji names
+        const keywordMap = {};
+        const stopWords = new Set([
+            'a', 'an', 'the', 'is', 'am', 'are', 'was', 'were', 'be', 'been', 'being',
+            'and', 'or', 'but', 'nor', 'for', 'yet', 'so', 'at', 'by', 'in', 'of', 'on',
+            'to', 'up', 'down', 'out', 'off', 'over', 'under', 'again', 'further', 'then',
+            'once', 'here', 'there', 'when', 'where', 'why', 'how', 'all', 'any', 'both',
+            'each', 'few', 'more', 'most', 'other', 'some', 'such', 'no', 'nor', 'not',
+            'only', 'own', 'same', 'so', 'than', 'too', 'very', 's', 't', 'can', 'will',
+            'just', 'don', 'should', 'now', 'from', 'with', 'about', 'against', 'between',
+            'into', 'through', 'during', 'before', 'after', 'above', 'below', 'to', 'from',
+            'up', 'down', 'in', 'out', 'on', 'off', 'over', 'under', 'again', 'further',
+            'then', 'once', 'here', 'there', 'when', 'where', 'why', 'how', 'all', 'any',
+            'both', 'each', 'few', 'more', 'most', 'other', 'some', 'such', 'no', 'nor',
+            'not', 'only', 'own', 'same', 'so', 'than', 'too', 'very', 's', 't', 'can',
+            'will', 'just', 'don', 'should', 'now', 'd', 'll', 'm', 'o', 're', 've', 'y',
+            'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might',
+            'must', 'can', 'this', 'that', 'these', 'those', 'i', 'you', 'he', 'she', 'it', 'we', 'they'
+        ]);
+        
+        // Get all emojis from categories
+        const allEmojis = Object.values(this.emojiCategories).flat();
+        
+        allEmojis.forEach(emoji => {
+            const name = this.getEmojiName(emoji);
+            if (name === emoji) return; // Skip if name is just the emoji itself
+            
+            // Extract keywords from name
+            const words = name.toLowerCase()
+                .split(/[\s\-_]+/)
+                .map(word => word.replace(/[^a-z0-9]/g, ''))
+                .filter(word => word.length > 1 && !stopWords.has(word));
+            
+            // Add individual words as keywords
+            words.forEach(keyword => {
+                if (keyword.length > 0) {
+                    if (!keywordMap[keyword]) {
+                        keywordMap[keyword] = [];
+                    }
+                    if (!keywordMap[keyword].includes(emoji)) {
+                        keywordMap[keyword].push(emoji);
+                    }
+                }
+            });
+            
+            // Add compound words (e.g., "wastebasket" -> "wastebasket")
+            const compound = name.toLowerCase().replace(/[^a-z0-9]/g, '');
+            if (compound.length > 3 && compound !== name.toLowerCase().replace(/\s+/g, '')) {
+                if (!keywordMap[compound]) {
+                    keywordMap[compound] = [];
+                }
+                if (!keywordMap[compound].includes(emoji)) {
+                    keywordMap[compound].push(emoji);
+                }
+            }
+        });
+        
+        // Add additional manual mappings for common synonyms and search terms
+        const additionalMappings = {
+            // Waste/Trash
+            'trash': ['🗑️'],
+            'garbage': ['🗑️'],
+            'waste': ['🗑️'],
+            'rubbish': ['🗑️'],
+            'bin': ['🗑️'],
+            'dumpster': ['🗑️'],
+            'wastebasket': ['🗑️'],
+            
+            // Broom/Cleaning
+            'vacuum': ['🧹'],
+            'broom': ['🧹'],
+            'sweep': ['🧹'],
+            'cleaning': ['🧹', '🧼'],
+            'sweeper': ['🧹'],
+            
+            // Soap
+            'soap': ['🧼'],
+            'cleanser': ['🧼'],
+        };
+        
+        // Merge additional mappings
+        Object.keys(additionalMappings).forEach(keyword => {
+            if (!keywordMap[keyword]) {
+                keywordMap[keyword] = [];
+            }
+            additionalMappings[keyword].forEach(emoji => {
+                if (!keywordMap[keyword].includes(emoji)) {
+                    keywordMap[keyword].push(emoji);
+                }
+            });
+        });
+        
+        return keywordMap;
     }
     
     bindEvents() {
@@ -3469,103 +4103,28 @@ class TaskTimer {
     getEmojiForTaskName(taskName) {
         if (!taskName || !taskName.trim()) return '📝';
         
-        const name = taskName.toLowerCase();
+        const name = taskName.toLowerCase().trim();
         
-        // PRIORITIZE NOUNS - Check specific objects/things first
-        // Toilet/Bathroom
-        if (name.match(/\b(toilet|bathroom|restroom|wc|lavatory)\b/)) return '🚽';
+        // Use the comprehensive keyword map
+        const keywordMap = this.emojiKeywordMap || {};
         
-        // Trash/Waste
-        if (name.match(/\b(trash|garbage|waste|rubbish|bin|dumpster)\b/)) return '🗑️';
+        // Split task name into words
+        const words = name.split(/\s+/).map(word => word.replace(/[^a-z0-9]/g, '')).filter(word => word.length > 1);
         
-        // Gift/Present
-        if (name.match(/\b(gift|present|surprise)\b/)) return '🎁';
+        // Check each word against the keyword map
+        for (const word of words) {
+            if (keywordMap[word] && keywordMap[word].length > 0) {
+                // Return the first matching emoji for this keyword
+                return keywordMap[word][0];
+            }
+        }
         
-        // Car/Vehicle
-        if (name.match(/\b(car|vehicle|auto|truck|motorcycle|bike)\b/)) return '🚗';
-        
-        // House/Home
-        if (name.match(/\b(house|home|apartment|condo|residence)\b/)) return '🏠';
-        
-        // Phone/Device
-        if (name.match(/\b(phone|mobile|cellphone|iphone|android|device)\b/)) return '📱';
-        
-        // Computer/Laptop
-        if (name.match(/\b(computer|laptop|pc|mac|desktop)\b/)) return '💻';
-        
-        // Book/Reading Material
-        if (name.match(/\b(book|novel|magazine|newspaper|journal)\b/)) return '📖';
-        
-        // Food Items
-        if (name.match(/\b(pizza|burger|sandwich|taco|sushi|coffee|tea|drink|water|food)\b/)) return '🍕';
-        if (name.match(/\b(apple|fruit|banana|orange|grape)\b/)) return '🍎';
-        
-        // Clothing
-        if (name.match(/\b(shirt|pants|shoes|clothes|clothing|outfit|dress)\b/)) return '👕';
-        
-        // Money/Currency
-        if (name.match(/\b(money|cash|dollar|euro|payment|salary)\b/)) return '💰';
-        
-        // Mail/Email/Letter
-        if (name.match(/\b(email|mail|letter|envelope|message|inbox)\b/)) return '📧';
-        
-        // Calendar/Date
-        if (name.match(/\b(calendar|date|appointment|meeting|event)\b/)) return '📅';
-        
-        // Camera/Photo
-        if (name.match(/\b(camera|photo|picture|image|photo)\b/)) return '📷';
-        
-        // Music/Audio
-        if (name.match(/\b(music|song|audio|sound|playlist|album)\b/)) return '🎵';
-        
-        // Video/Movie
-        if (name.match(/\b(video|movie|film|youtube|netflix)\b/)) return '🎥';
-        
-        // Game/Play
-        if (name.match(/\b(game|play|gaming|video game|console)\b/)) return '🎮';
-        
-        // Exercise/Fitness
-        if (name.match(/\b(exercise|workout|gym|fitness|running|sport)\b/)) return '💪';
-        
-        // Travel/Plane
-        if (name.match(/\b(travel|trip|vacation|flight|plane|airport)\b/)) return '✈️';
-        
-        // Shopping/Cart
-        if (name.match(/\b(shopping|store|market|mall|buy|purchase)\b/)) return '🛒';
-        
-        // Now check verbs/actions (only if no noun matched)
-        // Design/Create
-        if (name.match(/\b(design|create|draw|sketch|illustrate)\b/)) return '🎨';
-        
-        // Code/Program
-        if (name.match(/\b(code|program|develop|debug|script)\b/)) return '💻';
-        
-        // Write/Document
-        if (name.match(/\b(write|document|draft|blog|note)\b/)) return '✍️';
-        
-        // Clean/Organize
-        if (name.match(/\b(clean|organize|tidy|declutter|arrange)\b/)) return '🧹';
-        
-        // Read/Study
-        if (name.match(/\b(read|study|learn|research)\b/)) return '📚';
-        
-        // Cook/Prepare Food
-        if (name.match(/\b(cook|bake|prepare|recipe|kitchen)\b/)) return '🍳';
-        
-        // Call/Phone
-        if (name.match(/\b(call|phone|dial|ring|contact)\b/)) return '📞';
-        
-        // Build/Deploy
-        if (name.match(/\b(build|deploy|release|publish|launch)\b/)) return '🚀';
-        
-        // Fix/Repair
-        if (name.match(/\b(fix|repair|maintain|update|upgrade)\b/)) return '🔧';
-        
-        // Review/Check
-        if (name.match(/\b(review|analyze|check|inspect|audit)\b/)) return '🔍';
-        
-        // Test/QA
-        if (name.match(/\b(test|qa|quality|verify|validate)\b/)) return '🧪';
+        // Also check for compound matches (e.g., "wastebasket", "trashcan")
+        for (const keyword in keywordMap) {
+            if (name.includes(keyword) && keywordMap[keyword].length > 0) {
+                return keywordMap[keyword][0];
+            }
+        }
         
         // Default emoji if no match
         return '📝';
@@ -3668,8 +4227,11 @@ class TaskTimer {
             return;
         }
         
-        // Comprehensive emoji keyword mapping - maps search terms to specific emojis
-        const emojiKeywordMap = {
+        // Use the cached keyword map (built from emoji names)
+        const emojiKeywordMap = { ...(this.emojiKeywordMap || {}) };
+        
+        // Additional manual mappings for edge cases not captured by name extraction
+        const additionalMappings = {
             // Animals
             'elephant': ['🐘'],
             'cat': ['🐱', '🐈', '🐈‍⬛'],
@@ -4074,6 +4636,18 @@ class TaskTimer {
             'sweep': ['🧹'],
             'cleaning': ['🧹', '🧼'],
         };
+        
+        // Merge additional mappings with generated keyword map
+        Object.keys(additionalMappings).forEach(keyword => {
+            if (!emojiKeywordMap[keyword]) {
+                emojiKeywordMap[keyword] = [];
+            }
+            additionalMappings[keyword].forEach(emoji => {
+                if (!emojiKeywordMap[keyword].includes(emoji)) {
+                    emojiKeywordMap[keyword].push(emoji);
+                }
+            });
+        });
         
         // Search across all categories
         const allEmojis = Object.values(this.emojiCategories).flat();
