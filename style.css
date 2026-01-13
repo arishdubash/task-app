@@ -285,14 +285,23 @@ h1 {
     transform: translateY(0);
 }
 
+/* Tag Filter Tabs Container */
+.tag-filter-tabs-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border-primary);
+    gap: 24px;
+}
+
 /* Tag Filter Tabs */
 .tag-filter-tabs {
     display: flex;
     gap: 24px;
-    margin-bottom: 24px;
-    padding-bottom: 12px;
-    border-bottom: 1px solid var(--border-primary);
     flex-wrap: wrap;
+    flex: 1;
 }
 
 .filter-tab {
@@ -353,6 +362,80 @@ h1 {
 .filter-tab.active .filter-tab-badge {
     background: var(--bg-card);
     color: var(--text-primary);
+}
+
+/* Hide Completed Toggle */
+.hide-completed-toggle-container {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-shrink: 0;
+}
+
+.hide-completed-toggle-label {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    user-select: none;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    transition: color 0.2s ease;
+}
+
+.hide-completed-toggle-label:hover {
+    color: var(--text-primary);
+}
+
+.hide-completed-toggle {
+    position: relative;
+    width: 44px;
+    height: 24px;
+    appearance: none;
+    -webkit-appearance: none;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-primary);
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    outline: none;
+    flex-shrink: 0;
+}
+
+.hide-completed-toggle:checked {
+    background: linear-gradient(to right, #8071F6 0%, #5B51FD 100%);
+    border-color: transparent;
+}
+
+.hide-completed-toggle:checked:hover {
+    background: linear-gradient(to right, #8B7DF7 0%, #6B5FFE 100%);
+}
+
+.hide-completed-toggle::before {
+    content: '';
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--text-primary);
+    top: 2px;
+    left: 2px;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.hide-completed-toggle:checked::before {
+    transform: translateX(20px);
+    background: #FFFFFF;
+}
+
+.hide-completed-toggle:focus {
+    box-shadow: 0 0 0 3px var(--purple-bg);
+}
+
+.toggle-slider {
+    display: none;
 }
 
 /* Kanban Board */
@@ -455,7 +538,7 @@ h1 {
 }
 
 .add-btn {
-    background: #7635dc;
+    background: linear-gradient(to right, #8071F6 0%, #5B51FD 100%);
     border: none;
     color: #FFFFFF;
     padding: 10px 20px;
@@ -466,10 +549,18 @@ h1 {
     transition: all 0.2s ease;
     white-space: nowrap;
     box-shadow: 0 2px 8px rgba(139, 92, 246, 0.3);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.add-btn svg {
+    flex-shrink: 0;
+    vertical-align: middle;
 }
 
 .add-btn:hover {
-    background: #5119B7;
+    background: linear-gradient(to right, #8B7DF7 0%, #6B5FFE 100%);
     transform: translateY(-1px);
     box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
 }
@@ -1847,7 +1938,8 @@ h1 {
 }
 
 .status-col {
-    width: 120px;
+    width: 200px;
+    min-width: 200px;
 }
 
 .tasks-table-section {
@@ -1959,6 +2051,14 @@ h1 {
     white-space: nowrap;
     height: 32px;
     border-radius: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.table-action-btn.primary svg {
+    flex-shrink: 0;
+    vertical-align: middle;
 }
 
 .table-action-btn.primary:hover {
@@ -2631,7 +2731,7 @@ h1 {
 }
 
 .btn-primary {
-    background: #7635dc;
+    background: linear-gradient(to right, #8071F6 0%, #5B51FD 100%);
     border: none;
     color: #FFFFFF;
     padding: 12px 24px;
@@ -2644,7 +2744,7 @@ h1 {
 }
 
 .btn-primary:hover {
-    background: #5119B7;
+    background: linear-gradient(to right, #8B7DF7 0%, #6B5FFE 100%);
     transform: translateY(-1px);
     box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
 }
@@ -2664,6 +2764,29 @@ h1 {
 .btn-secondary:hover {
     background: var(--bg-hover);
     border-color: var(--border-secondary);
+}
+
+.btn-danger {
+    background: var(--error);
+    border: none;
+    color: #FFFFFF;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+}
+
+.btn-danger:hover {
+    background: #DC2626;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+}
+
+.btn-danger:active {
+    transform: translateY(0);
 }
 
 /* Kanban column updates */

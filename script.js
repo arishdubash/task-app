@@ -1,6 +1,7 @@
 class TaskTimer {
     constructor() {
         this.tasks = [];
+        this.history = []; // Array to store history log entries
         this.currentRunningTask = null;
         this.isRestMode = false;
         this.restTime = 5 * 60; // 5 minutes in seconds
@@ -8,11 +9,11 @@ class TaskTimer {
         this.pendingUndoAction = null;
         this.snackbarTimeoutId = null;
         // Default tags that cannot be deleted
-        this.defaultTags = ['personal', 'chores', 'work'];
+        this.defaultTags = ['Personal', 'Chores', 'Work'];
         this.allTags = [
-            { name: 'personal', color: '#8B5CF6', isDefault: true },
-            { name: 'chores', color: '#3B82F6', isDefault: true },
-            { name: 'work', color: '#22C55E', isDefault: true }
+            { name: 'Personal', color: '#8B5CF6', isDefault: true },
+            { name: 'Chores', color: '#3B82F6', isDefault: true },
+            { name: 'Work', color: '#22C55E', isDefault: true }
         ]; // Track all existing tags across all tasks: [{name: string, color: string, isDefault: boolean}]
         
         // Available tag colors (8 common colors)
@@ -80,6 +81,17 @@ class TaskTimer {
             // Save recent emojis (keep only 40 most recent)
             const recentEmojisToSave = this.recentEmojis.slice(0, 40);
             localStorage.setItem('pomodoro_recent_emojis', JSON.stringify(recentEmojisToSave));
+            
+            // Save history
+            if (this.history && Array.isArray(this.history)) {
+                const historyToSave = this.history.map(entry => ({
+                    ...entry,
+                    timestamp: entry.timestamp instanceof Date ? entry.timestamp.toISOString() : entry.timestamp
+                }));
+                localStorage.setItem('pomodoro_history', JSON.stringify(historyToSave));
+            } else {
+                localStorage.setItem('pomodoro_history', JSON.stringify([]));
+            }
         } catch (error) {
             console.error('Error saving to localStorage:', error);
         }
@@ -135,17 +147,21 @@ class TaskTimer {
             const savedTags = localStorage.getItem('pomodoro_tags');
             if (savedTags) {
                 const tagsData = JSON.parse(savedTags);
-                // Update default tags with saved colors if they were changed
+                // Update default tags with saved colors if they were changed (case-insensitive)
                 tagsData.forEach(savedTag => {
-                    const defaultTagIndex = this.allTags.findIndex(t => t.name === savedTag.name && this.defaultTags.includes(t.name));
+                    const defaultTagIndex = this.allTags.findIndex(t => 
+                        t.name.toLowerCase() === savedTag.name.toLowerCase() && 
+                        this.defaultTags.some(dt => dt.toLowerCase() === savedTag.name.toLowerCase())
+                    );
                     if (defaultTagIndex !== -1) {
                         // Update color of default tag if it was changed
                         this.allTags[defaultTagIndex].color = savedTag.color;
                     }
                 });
                 // Add user-created tags (not in default list)
-                const defaultTagNames = new Set(this.defaultTags);
-                const userTags = tagsData.filter(tag => !defaultTagNames.has(tag.name));
+                // Filter out default tags (case-insensitive)
+                const defaultTagNamesLower = new Set(this.defaultTags.map(dt => dt.toLowerCase()));
+                const userTags = tagsData.filter(tag => !defaultTagNamesLower.has(tag.name.toLowerCase()));
                 this.allTags = [...this.allTags, ...userTags];
             }
             
@@ -164,9 +180,197 @@ class TaskTimer {
                     this.recentEmojis = [];
                 }
             }
+            
+            // Load history
+            const savedHistory = localStorage.getItem('pomodoro_history');
+            if (savedHistory) {
+                try {
+                    const historyData = JSON.parse(savedHistory);
+                    this.history = historyData.map(entry => ({
+                        ...entry,
+                        timestamp: new Date(entry.timestamp)
+                    }));
+                } catch (e) {
+                    this.history = [];
+                }
+            } else {
+                this.history = [];
+            }
         } catch (error) {
             console.error('Error loading from localStorage:', error);
         }
+    }
+    
+    // History Methods
+    addHistoryEntry(taskId, taskName, action) {
+        const entry = {
+            id: Date.now(),
+            taskId: taskId,
+            taskName: taskName,
+            action: action,
+            timestamp: new Date()
+        };
+        this.history.push(entry);
+        this.saveToLocalStorage();
+        // Only render history if we're currently viewing it
+        if (this.historyView && this.historyView.style.display !== 'none') {
+            this.renderHistory();
+        }
+    }
+    
+    deleteHistoryEntry(entryId) {
+        // Store the entryId to delete after confirmation
+        this.pendingDeleteHistoryId = entryId;
+        
+        // Show confirmation modal
+        if (this.deleteHistoryModal) {
+            this.deleteHistoryModal.classList.add('show');
+        }
+    }
+    
+    confirmDeleteHistoryEntry() {
+        if (this.pendingDeleteHistoryId !== undefined) {
+            this.history = this.history.filter(entry => entry.id !== this.pendingDeleteHistoryId);
+            this.saveToLocalStorage();
+            this.renderHistory();
+            this.pendingDeleteHistoryId = undefined;
+        }
+        this.hideDeleteHistoryModal();
+    }
+    
+    hideDeleteHistoryModal() {
+        if (this.deleteHistoryModal) {
+            this.deleteHistoryModal.classList.remove('show');
+        }
+        this.pendingDeleteHistoryId = undefined;
+    }
+    
+    renderHistory() {
+        if (!this.historyTasksBody) return;
+        
+        // Clear table body
+        this.historyTasksBody.innerHTML = '';
+        
+        // Sort history by timestamp (most recent first)
+        const sortedHistory = [...this.history].sort((a, b) => b.timestamp - a.timestamp);
+        
+        if (sortedHistory.length === 0) {
+            const row = document.createElement('tr');
+            row.innerHTML = `<td colspan="3" style="text-align: center; padding: 40px; color: var(--text-tertiary);">No history entries yet.</td>`;
+            this.historyTasksBody.appendChild(row);
+            return;
+        }
+        
+        sortedHistory.forEach(entry => {
+            const row = document.createElement('tr');
+            row.className = 'task-row';
+            
+            // Format date and time
+            const date = entry.timestamp.toLocaleDateString('en-US', { 
+                year: 'numeric', 
+                month: 'short', 
+                day: 'numeric' 
+            });
+            const time = entry.timestamp.toLocaleTimeString('en-US', { 
+                hour: '2-digit', 
+                minute: '2-digit',
+                hour12: true 
+            });
+            
+            // Date & Time cell (first column) with colored "at"
+            const dateTimeCell = document.createElement('td');
+            dateTimeCell.className = 'status-col';
+            
+            // Date in white, "at" in secondary color, time in white
+            const dateSpan = document.createElement('span');
+            dateSpan.style.color = 'var(--text-primary)';
+            dateSpan.textContent = date;
+            
+            const atSpan = document.createElement('span');
+            atSpan.style.color = 'var(--text-secondary)';
+            atSpan.textContent = ' at ';
+            
+            const timeSpan = document.createElement('span');
+            timeSpan.style.color = 'var(--text-primary)';
+            timeSpan.textContent = time;
+            
+            dateTimeCell.appendChild(dateSpan);
+            dateTimeCell.appendChild(atSpan);
+            dateTimeCell.appendChild(timeSpan);
+            
+            // Task action cell (combined task name and action)
+            const actionCell = document.createElement('td');
+            actionCell.className = 'description-col';
+            
+            // Format action text based on action type
+            // Task name in white, action text in darker neutral
+            let taskName = '';
+            let actionText = '';
+            let keyword = '';
+            let keywordColor = '';
+            
+            if (entry.action === 'Task added to Today') {
+                taskName = entry.taskName;
+                actionText = ' added to ';
+                keyword = 'Today';
+                keywordColor = 'var(--purple-primary)';
+            } else if (entry.action === 'Task moved to In Progress') {
+                taskName = entry.taskName;
+                actionText = ' moved to ';
+                keyword = 'In Progress';
+                keywordColor = 'var(--warning)';
+            } else if (entry.action === 'Task completed') {
+                taskName = entry.taskName;
+                actionText = ' ';
+                keyword = 'completed';
+                keywordColor = 'var(--success)';
+            }
+            
+            if (keyword) {
+                // Task name in white
+                const taskNameSpan = document.createElement('span');
+                taskNameSpan.style.color = 'var(--text-primary)';
+                taskNameSpan.textContent = taskName;
+                
+                // Action text in darker neutral
+                const actionTextSpan = document.createElement('span');
+                actionTextSpan.style.color = 'var(--text-secondary)';
+                actionTextSpan.textContent = actionText;
+                
+                // Keyword with color
+                const keywordSpan = document.createElement('span');
+                keywordSpan.style.color = keywordColor;
+                keywordSpan.textContent = keyword;
+                
+                actionCell.appendChild(taskNameSpan);
+                actionCell.appendChild(actionTextSpan);
+                actionCell.appendChild(keywordSpan);
+            } else {
+                actionCell.textContent = entry.action;
+            }
+            
+            // Delete button cell
+            const deleteCell = document.createElement('td');
+            deleteCell.className = 'delete-col';
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'table-action-btn danger small-icon';
+            deleteBtn.title = 'Delete history entry';
+            deleteBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M10 11v6M14 11v6"/>
+            </svg>`;
+            deleteBtn.addEventListener('click', () => {
+                this.deleteHistoryEntry(entry.id);
+            });
+            deleteCell.appendChild(deleteBtn);
+            
+            // Append cells to row (Date & Time first, then Task action, then Delete)
+            row.appendChild(dateTimeCell);
+            row.appendChild(actionCell);
+            row.appendChild(deleteCell);
+            
+            // Append row to table body
+            this.historyTasksBody.appendChild(row);
+        });
     }
     
     initializeElements() {
@@ -212,6 +416,13 @@ class TaskTimer {
         this.clearCanvasBtn = document.getElementById('clear-canvas');
         this.closeDoodleBtn = document.getElementById('close-doodle');
         
+        // Delete history modal elements
+        this.deleteHistoryModal = document.getElementById('delete-history-modal');
+        this.closeDeleteHistoryModalBtn = document.getElementById('close-delete-history-modal');
+        this.cancelDeleteHistoryBtn = document.getElementById('cancel-delete-history-btn');
+        this.confirmDeleteHistoryBtn = document.getElementById('confirm-delete-history-btn');
+        this.pendingDeleteHistoryId = undefined;
+        
         // Canvas drawing variables
         this.isDrawing = false;
         this.lastX = 0;
@@ -228,16 +439,31 @@ class TaskTimer {
         this.tasksView = document.getElementById('tasks-view');
         this.kanbanView = document.getElementById('kanban-view');
         this.tagsView = document.getElementById('tags-view');
-        this.newTagNameInput = document.getElementById('new-tag-name');
-        this.createTagBtn = document.getElementById('create-tag-btn');
-        this.tagsList = document.getElementById('tags-list');
-        this.colorOptions = document.getElementById('color-options');
+        this.historyView = document.getElementById('history-view');
+        this.historyTasksBody = document.getElementById('history-tasks-body');
+        this.addTagBtn = document.getElementById('add-tag-btn');
+        this.addTagModal = document.getElementById('add-tag-modal');
+        this.tagNameInput = document.getElementById('tag-name-input');
+        this.tagsTableBody = document.getElementById('tags-table-body');
+        this.modalColorOptions = document.getElementById('modal-color-options');
+        this.closeTagModalBtn = document.getElementById('close-tag-modal');
+        this.cancelTagBtn = document.getElementById('cancel-tag-btn');
+        this.saveTagBtn = document.getElementById('save-tag-btn');
+        this.editTagModal = document.getElementById('edit-tag-modal');
+        this.editTagNameInput = document.getElementById('edit-tag-name-input');
+        this.closeEditTagModalBtn = document.getElementById('close-edit-tag-modal');
+        this.cancelEditTagBtn = document.getElementById('cancel-edit-tag-btn');
+        this.saveEditTagBtn = document.getElementById('save-edit-tag-btn');
+        this.currentEditingTagName = null;
         this.selectedColor = this.tagColors[0].value;
         
         // Tag filter state
         this.selectedTagFilter = 'all';
+        this.tagFilterTabsContainer = document.getElementById('tag-filter-tabs-container');
         this.tagFilterTabs = document.getElementById('tag-filter-tabs');
         this.kanbanFilterTabs = document.getElementById('kanban-filter-tabs');
+        this.hideCompletedToggle = document.getElementById('hide-completed-toggle');
+        this.hideCompleted = false;
         
         // Emoji selector elements
         this.emojiPickerBtn = document.getElementById('emoji-picker-btn');
@@ -1045,6 +1271,33 @@ class TaskTimer {
             });
         }
         
+        // Delete history modal events
+        if (this.closeDeleteHistoryModalBtn) {
+            this.closeDeleteHistoryModalBtn.addEventListener('click', () => this.hideDeleteHistoryModal());
+        }
+        if (this.cancelDeleteHistoryBtn) {
+            this.cancelDeleteHistoryBtn.addEventListener('click', () => this.hideDeleteHistoryModal());
+        }
+        if (this.confirmDeleteHistoryBtn) {
+            this.confirmDeleteHistoryBtn.addEventListener('click', () => this.confirmDeleteHistoryEntry());
+        }
+        if (this.deleteHistoryModal) {
+            this.deleteHistoryModal.addEventListener('click', (e) => {
+                if (e.target === this.deleteHistoryModal) {
+                    this.hideDeleteHistoryModal();
+                }
+            });
+        }
+        
+        // Hide completed toggle
+        if (this.hideCompletedToggle) {
+            this.hideCompletedToggle.addEventListener('change', () => {
+                this.hideCompleted = this.hideCompletedToggle.checked;
+                this.updateDisplay();
+                this.renderFilterTabs(); // Refresh tabs to reflect new counts
+            });
+        }
+        
         if (this.taskNameInput) {
             this.taskNameInput.addEventListener('keypress', (e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
@@ -1143,20 +1396,73 @@ class TaskTimer {
         });
         
         // Tag management events
-        if (this.createTagBtn) {
-            this.createTagBtn.addEventListener('click', () => this.createTagFromManagement());
+        if (this.addTagBtn) {
+            this.addTagBtn.addEventListener('click', () => this.showAddTagModal());
         }
         
-        if (this.newTagNameInput) {
-            this.newTagNameInput.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') this.createTagFromManagement();
+        if (this.closeTagModalBtn) {
+            this.closeTagModalBtn.addEventListener('click', () => this.hideAddTagModal());
+        }
+        
+        if (this.cancelTagBtn) {
+            this.cancelTagBtn.addEventListener('click', () => this.hideAddTagModal());
+        }
+        
+        if (this.saveTagBtn) {
+            this.saveTagBtn.addEventListener('click', () => this.createTagFromManagement());
+        }
+        
+        if (this.tagNameInput) {
+            this.tagNameInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    this.createTagFromManagement();
+                }
+            });
+        }
+        
+        // Close modal when clicking outside
+        if (this.addTagModal) {
+            this.addTagModal.addEventListener('click', (e) => {
+                if (e.target === this.addTagModal) {
+                    this.hideAddTagModal();
+                }
+            });
+        }
+        
+        // Edit tag modal events
+        if (this.closeEditTagModalBtn) {
+            this.closeEditTagModalBtn.addEventListener('click', () => this.hideEditTagModal());
+        }
+        
+        if (this.cancelEditTagBtn) {
+            this.cancelEditTagBtn.addEventListener('click', () => this.hideEditTagModal());
+        }
+        
+        if (this.saveEditTagBtn) {
+            this.saveEditTagBtn.addEventListener('click', () => this.saveTagEdit());
+        }
+        
+        if (this.editTagNameInput) {
+            this.editTagNameInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    this.saveTagEdit();
+                }
+            });
+        }
+        
+        // Close edit modal when clicking outside
+        if (this.editTagModal) {
+            this.editTagModal.addEventListener('click', (e) => {
+                if (e.target === this.editTagModal) {
+                    this.hideEditTagModal();
+                }
             });
         }
         
         // Modal tag creation is now handled inline via the + button in renderModalTagSelector
         
-        // Initialize color picker
-        this.initializeColorPicker();
+        // Initialize color picker for modal
+        this.initializeModalColorPicker();
         
         if (this.restTimeInput) {
             this.restTimeInput.addEventListener('change', (e) => {
@@ -1423,16 +1729,16 @@ class TaskTimer {
         const tagName = prompt('Enter tag name:');
         if (!tagName) return;
         
-        const trimmedTagName = tagName.trim().toLowerCase();
+        const trimmedTagName = tagName.trim();
         if (!trimmedTagName) return;
         
-        // Check if tag already exists
-        if (this.allTags.find(t => t.name === trimmedTagName)) {
+        // Check if tag already exists (case-insensitive)
+        if (this.findTagByNameCaseInsensitive(trimmedTagName)) {
             this.showNotification('Tag already exists!');
             return;
         }
         
-        // Create tag with random color
+        // Create tag with random color (preserve case)
         const randomColor = this.tagColors[Math.floor(Math.random() * this.tagColors.length)];
         const newTag = {
             name: trimmedTagName,
@@ -1529,6 +1835,11 @@ class TaskTimer {
             };
             
             this.tasks.push(task);
+            
+            // Log history if task is added to Today
+            if (selectedState === this.TASK_STATES.TODAY) {
+                this.addHistoryEntry(task.id, taskName, 'Task added to Today');
+            }
         }
         
         this.hideAddTaskModal();
@@ -1551,7 +1862,7 @@ class TaskTimer {
         let filteredTasks = this.tasks;
         if (this.selectedTagFilter !== 'all') {
             filteredTasks = this.tasks.filter(task => 
-                task.tags && task.tags.includes(this.selectedTagFilter)
+                task.tags && task.tags.some(t => t.toLowerCase() === this.selectedTagFilter.toLowerCase())
             );
         }
         
@@ -1571,6 +1882,13 @@ class TaskTimer {
                 task.group = 'thisWeek';
             }
         });
+        
+        // Filter out completed tasks if hide completed toggle is on
+        if (this.hideCompleted) {
+            tasks = tasks.filter(task => 
+                !(task.isCompleted || task.state === this.TASK_STATES.COMPLETE)
+            );
+        }
         
         // Split tasks by group - show all tasks regardless of board state
         let thisWeekTasks = tasks.filter(task => 
@@ -1749,7 +2067,29 @@ class TaskTimer {
             // Show "Add to Board" button instead of "None"
             const addToBoardBtn = document.createElement('button');
             addToBoardBtn.className = 'table-action-btn primary';
-            addToBoardBtn.textContent = 'Add to Board';
+            const plusIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            plusIcon.setAttribute('width', '16');
+            plusIcon.setAttribute('height', '16');
+            plusIcon.setAttribute('viewBox', '0 0 24 24');
+            plusIcon.setAttribute('fill', 'none');
+            plusIcon.setAttribute('stroke', 'currentColor');
+            plusIcon.setAttribute('stroke-width', '2');
+            plusIcon.setAttribute('stroke-linecap', 'round');
+            plusIcon.setAttribute('stroke-linejoin', 'round');
+            const line1 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            line1.setAttribute('x1', '12');
+            line1.setAttribute('y1', '5');
+            line1.setAttribute('x2', '12');
+            line1.setAttribute('y2', '19');
+            const line2 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            line2.setAttribute('x1', '5');
+            line2.setAttribute('y1', '12');
+            line2.setAttribute('x2', '19');
+            line2.setAttribute('y2', '12');
+            plusIcon.appendChild(line1);
+            plusIcon.appendChild(line2);
+            addToBoardBtn.appendChild(plusIcon);
+            addToBoardBtn.appendChild(document.createTextNode(' Add to Board'));
             addToBoardBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 this.moveTaskToBoard(task.id);
@@ -2096,6 +2436,8 @@ class TaskTimer {
                 task.completedAt = Date.now();
                 task.uncheckedAt = null;
                 task.state = this.TASK_STATES.COMPLETE;
+                // Log history for completion
+                this.addHistoryEntry(task.id, task.name, 'Task completed');
             } else {
                 task.completedAt = null;
                 task.uncheckedAt = Date.now();
@@ -2118,6 +2460,7 @@ class TaskTimer {
         const firstTop = firstRect.top;
         
         // Toggle completion
+        const wasCompleted = task.isCompleted;
         task.isCompleted = !task.isCompleted;
         
         // Track completion/uncheck time
@@ -2125,6 +2468,8 @@ class TaskTimer {
             task.completedAt = Date.now();
             task.uncheckedAt = null; // Clear unchecked time
             task.state = this.TASK_STATES.COMPLETE;
+            // Log history for completion
+            this.addHistoryEntry(task.id, task.name, 'Task completed');
         } else {
             task.completedAt = null;
             task.uncheckedAt = Date.now(); // Track when unchecked
@@ -2136,6 +2481,39 @@ class TaskTimer {
         // If task is running, pause it
         if (task.isRunning) {
             this.pauseTask(taskId);
+        }
+        
+        // If hideCompleted is ON and task is being completed, do poof animation
+        if (this.hideCompleted && task.isCompleted && !wasCompleted) {
+            // Poof animation: scale down and fade out
+            currentRow.style.willChange = 'transform, opacity';
+            currentRow.style.transition = 'transform 0.35s cubic-bezier(0.4, 0, 1, 1), opacity 0.35s ease-out';
+            currentRow.style.transformOrigin = 'center';
+            
+            // Force reflow to ensure initial state is applied
+            currentRow.offsetHeight;
+            
+            // Trigger animation
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    currentRow.style.transform = 'scale(0.7)';
+                    currentRow.style.opacity = '0';
+                });
+            });
+            
+            // Remove row after animation completes
+            const removeRow = () => {
+                currentRow.remove();
+                this.saveToLocalStorage();
+                this.renderTasks();
+                this.renderFilterTabs();
+                this.renderKanbanFilterTabs();
+            };
+            
+            currentRow.addEventListener('transitionend', removeRow, { once: true });
+            // Fallback in case transitionend doesn't fire
+            setTimeout(removeRow, 400);
+            return;
         }
         
         // Update row content immediately
@@ -2328,7 +2706,29 @@ class TaskTimer {
             if (!task.state || task.state === this.TASK_STATES.NONE) {
                 const addToBoardBtn = document.createElement('button');
                 addToBoardBtn.className = 'table-action-btn primary';
-                addToBoardBtn.textContent = 'Add to Board';
+                const plusIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                plusIcon.setAttribute('width', '16');
+                plusIcon.setAttribute('height', '16');
+                plusIcon.setAttribute('viewBox', '0 0 24 24');
+                plusIcon.setAttribute('fill', 'none');
+                plusIcon.setAttribute('stroke', 'currentColor');
+                plusIcon.setAttribute('stroke-width', '2');
+                plusIcon.setAttribute('stroke-linecap', 'round');
+                plusIcon.setAttribute('stroke-linejoin', 'round');
+                const line1 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line1.setAttribute('x1', '12');
+                line1.setAttribute('y1', '5');
+                line1.setAttribute('x2', '12');
+                line1.setAttribute('y2', '19');
+                const line2 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line2.setAttribute('x1', '5');
+                line2.setAttribute('y1', '12');
+                line2.setAttribute('x2', '19');
+                line2.setAttribute('y2', '12');
+                plusIcon.appendChild(line1);
+                plusIcon.appendChild(line2);
+                addToBoardBtn.appendChild(plusIcon);
+                addToBoardBtn.appendChild(document.createTextNode(' Add to Board'));
                 addToBoardBtn.addEventListener('click', (e) => {
                     e.stopPropagation();
                     this.moveTaskToBoard(task.id);
@@ -2353,15 +2753,8 @@ class TaskTimer {
     }
     
     moveTaskToBoard(taskId) {
-        const task = this.tasks.find(t => t.id === taskId);
-        if (!task) return;
-        
-        // Move to Today state
-        task.state = this.TASK_STATES.TODAY;
-        task.isCompleted = false;
-        
-        this.renderTasks();
-        this.renderKanbanFilterTabs();
+        // Use moveTask to ensure proper saving and history logging
+        this.moveTask(taskId, this.TASK_STATES.TODAY);
     }
     
     renderTaskColumn(tasks, container, columnState) {
@@ -2716,6 +3109,7 @@ class TaskTimer {
         const task = this.tasks.find(t => t.id === taskId);
         if (!task) return;
         
+        const oldState = task.state;
         task.state = newState;
         
         // If moving to today or in-progress, ensure it's not completed
@@ -2731,6 +3125,17 @@ class TaskTimer {
             }
             if (task.startTime && !task.endTime) {
                 task.endTime = new Date();
+            }
+        }
+        
+        // Log history for state changes
+        if (oldState !== newState) {
+            if (newState === this.TASK_STATES.TODAY) {
+                this.addHistoryEntry(taskId, task.name, 'Task added to Today');
+            } else if (newState === this.TASK_STATES.IN_PROGRESS) {
+                this.addHistoryEntry(taskId, task.name, 'Task moved to In Progress');
+            } else if (newState === this.TASK_STATES.COMPLETE) {
+                this.addHistoryEntry(taskId, task.name, 'Task completed');
             }
         }
         
@@ -2772,6 +3177,8 @@ class TaskTimer {
             if (task.startTime && !task.endTime) {
                 task.endTime = new Date();
             }
+            // Log history
+            this.addHistoryEntry(taskId, task.name, 'Task completed');
             // Render first to ensure task element exists
             this.saveToLocalStorage();
             this.renderTasks();
@@ -3655,18 +4062,33 @@ class TaskTimer {
         if (viewName === 'tags') {
             if (this.tasksView) this.tasksView.style.display = 'none';
             if (this.kanbanView) this.kanbanView.style.display = 'none';
+            if (this.historyView) this.historyView.style.display = 'none';
             if (this.tagsView) this.tagsView.style.display = 'block';
             this.renderTagsManagement();
+            // Hide toggle container on non-tasks views
+            if (this.tagFilterTabsContainer) this.tagFilterTabsContainer.style.display = 'none';
         } else if (viewName === 'kanban') {
             if (this.tasksView) this.tasksView.style.display = 'none';
             if (this.tagsView) this.tagsView.style.display = 'none';
+            if (this.historyView) this.historyView.style.display = 'none';
             if (this.kanbanView) this.kanbanView.style.display = 'block';
+            // Hide toggle container on non-tasks views
+            if (this.tagFilterTabsContainer) this.tagFilterTabsContainer.style.display = 'none';
             this.renderTasks();
             this.renderKanbanFilterTabs();
+        } else if (viewName === 'history') {
+            if (this.tasksView) this.tasksView.style.display = 'none';
+            if (this.kanbanView) this.kanbanView.style.display = 'none';
+            if (this.tagsView) this.tagsView.style.display = 'none';
+            if (this.historyView) this.historyView.style.display = 'block';
+            this.renderHistory();
+            // Hide toggle container on non-tasks views
+            if (this.tagFilterTabsContainer) this.tagFilterTabsContainer.style.display = 'none';
         } else {
             // Tasks view
             if (this.kanbanView) this.kanbanView.style.display = 'none';
             if (this.tagsView) this.tagsView.style.display = 'none';
+            if (this.historyView) this.historyView.style.display = 'none';
             if (this.tasksView) this.tasksView.style.display = 'block';
             this.renderTasks();
             this.renderFilterTabs();
@@ -3674,10 +4096,35 @@ class TaskTimer {
     }
     
     // Tag Management Methods
-    initializeColorPicker() {
-        if (!this.colorOptions) return;
+    showAddTagModal() {
+        // Reset form
+        if (this.tagNameInput) {
+            this.tagNameInput.value = '';
+        }
+        this.selectedColor = this.tagColors[0].value;
+        this.initializeModalColorPicker();
         
-        this.colorOptions.innerHTML = '';
+        // Show modal
+        if (this.addTagModal) {
+            this.addTagModal.classList.add('show');
+        }
+        
+        // Focus on tag name input
+        setTimeout(() => {
+            if (this.tagNameInput) this.tagNameInput.focus();
+        }, 100);
+    }
+    
+    hideAddTagModal() {
+        if (this.addTagModal) {
+            this.addTagModal.classList.remove('show');
+        }
+    }
+    
+    initializeModalColorPicker() {
+        if (!this.modalColorOptions) return;
+        
+        this.modalColorOptions.innerHTML = '';
         this.tagColors.forEach(color => {
             const colorBtn = document.createElement('button');
             colorBtn.className = 'color-option';
@@ -3688,37 +4135,33 @@ class TaskTimer {
             }
             colorBtn.onclick = () => {
                 this.selectedColor = color.value;
-                document.querySelectorAll('.color-option').forEach(btn => {
+                this.modalColorOptions.querySelectorAll('.color-option').forEach(btn => {
                     btn.classList.remove('selected');
                 });
                 colorBtn.classList.add('selected');
             };
-            this.colorOptions.appendChild(colorBtn);
+            this.modalColorOptions.appendChild(colorBtn);
         });
     }
     
     createTagFromManagement() {
-        const tagName = this.newTagNameInput.value.trim().toLowerCase();
+        const tagName = this.tagNameInput.value.trim();
         if (!tagName) return;
         
-        // Check if tag already exists
-        if (this.allTags.find(t => t.name === tagName)) {
+        // Check if tag already exists (case-insensitive)
+        if (this.findTagByNameCaseInsensitive(tagName)) {
             this.showNotification('Tag already exists!');
             return;
         }
         
-        // Create tag
+        // Create tag (preserve case)
         this.allTags.push({
             name: tagName,
             color: this.selectedColor
         });
         
-        // Clear input
-        this.newTagNameInput.value = '';
-        this.selectedColor = this.tagColors[0].value;
-        this.initializeColorPicker();
-        
-        // Refresh tag list
+        // Close modal and refresh
+        this.hideAddTagModal();
         this.saveToLocalStorage();
         this.renderTagsManagement();
         this.renderFilterTabs();
@@ -3726,8 +4169,9 @@ class TaskTimer {
     }
     
     deleteTag(tagName) {
-        // Prevent deletion of default tags
-        if (this.defaultTags.includes(tagName)) {
+        // Prevent deletion of default tags (case-insensitive)
+        const isDefault = this.defaultTags.some(dt => dt.toLowerCase() === tagName.toLowerCase());
+        if (isDefault) {
             this.showNotification('Default tags cannot be deleted!');
             return;
         }
@@ -3759,7 +4203,7 @@ class TaskTimer {
     }
     
     changeTagColor(tagName, newColor) {
-        const tag = this.allTags.find(t => t.name === tagName);
+        const tag = this.getTagByName(tagName);
         if (tag) {
             tag.color = newColor;
             this.saveToLocalStorage();
@@ -3769,76 +4213,211 @@ class TaskTimer {
         }
     }
     
-    renderTagsManagement() {
-        if (!this.tagsList) return;
+    showEditTagModal(tagName) {
+        const tag = this.getTagByName(tagName);
+        if (!tag) return;
         
-        this.tagsList.innerHTML = '';
+        // Check if it's a default tag (case-insensitive)
+        const isDefault = this.defaultTags.some(dt => dt.toLowerCase() === tagName.toLowerCase());
+        if (isDefault) {
+            this.showNotification('Default tags cannot be renamed!');
+            return;
+        }
+        
+        // Store the tag being edited
+        this.currentEditingTagName = tag.name;
+        
+        // Set input value
+        if (this.editTagNameInput) {
+            this.editTagNameInput.value = tag.name;
+        }
+        
+        // Show modal
+        if (this.editTagModal) {
+            this.editTagModal.classList.add('show');
+        }
+        
+        // Focus on input
+        setTimeout(() => {
+            if (this.editTagNameInput) this.editTagNameInput.focus();
+            if (this.editTagNameInput) this.editTagNameInput.select();
+        }, 100);
+    }
+    
+    hideEditTagModal() {
+        if (this.editTagModal) {
+            this.editTagModal.classList.remove('show');
+        }
+        this.currentEditingTagName = null;
+    }
+    
+    saveTagEdit() {
+        if (!this.currentEditingTagName) return;
+        
+        const tag = this.getTagByName(this.currentEditingTagName);
+        if (!tag) return;
+        
+        const newTagName = this.editTagNameInput.value.trim();
+        if (!newTagName || newTagName === '') {
+            this.hideEditTagModal();
+            return;
+        }
+        
+        // Check if new name already exists (case-insensitive, but not the same tag)
+        const existingTag = this.findTagByNameCaseInsensitive(newTagName);
+        if (existingTag && existingTag.name !== tag.name) {
+            this.showNotification('Tag already exists!');
+            return;
+        }
+        
+        // Check if it's a default tag (case-insensitive)
+        const isDefault = this.defaultTags.some(dt => dt.toLowerCase() === this.currentEditingTagName.toLowerCase());
+        if (isDefault) {
+            this.showNotification('Default tags cannot be renamed!');
+            this.hideEditTagModal();
+            return;
+        }
+        
+        const oldName = tag.name;
+        tag.name = newTagName;
+        
+        // Update all tasks that use this tag
+        this.tasks.forEach(task => {
+            if (task.tags) {
+                const tagIndex = task.tags.findIndex(t => t.toLowerCase() === oldName.toLowerCase());
+                if (tagIndex !== -1) {
+                    task.tags[tagIndex] = newTagName;
+                }
+            }
+        });
+        
+        // Update filter if needed
+        if (this.selectedTagFilter === oldName) {
+            this.selectedTagFilter = newTagName;
+        }
+        
+        this.hideEditTagModal();
+        this.saveToLocalStorage();
+        this.renderTagsManagement();
+        this.renderTasks();
+        this.renderFilterTabs();
+        this.renderKanbanFilterTabs();
+        this.showNotification('Tag renamed!');
+    }
+    
+    renderTagsManagement() {
+        if (!this.tagsTableBody) return;
+        
+        this.tagsTableBody.innerHTML = '';
         
         if (this.allTags.length === 0) {
-            this.tagsList.innerHTML = '<div class="no-tags">No tags created yet. Create your first tag above!</div>';
+            const row = document.createElement('tr');
+            row.innerHTML = `<td colspan="3" style="text-align: center; padding: 40px; color: var(--text-tertiary);">No tags created yet. Click "Add Tag" to create one!</td>`;
+            this.tagsTableBody.appendChild(row);
             return;
         }
         
         this.allTags.forEach(tag => {
-            const isDefault = this.defaultTags.includes(tag.name);
-            const tagItem = document.createElement('div');
-            tagItem.className = 'tag-management-item';
+            const isDefault = this.defaultTags.some(dt => dt.toLowerCase() === tag.name.toLowerCase());
+            const row = document.createElement('tr');
+            row.className = 'task-row';
             
-            const tagPreview = document.createElement('div');
-            tagPreview.className = 'tag-preview';
+            // Tag Name column
+            const nameCell = document.createElement('td');
+            nameCell.className = 'name-col';
+            const tagPreview = document.createElement('span');
+            tagPreview.className = 'task-tag';
             const transparentBg = this.hexToRgba(tag.color, 0.15);
             tagPreview.style.cssText = `background: ${transparentBg}; color: ${tag.color}`;
             tagPreview.textContent = tag.name;
+            nameCell.appendChild(tagPreview);
             
-            const tagActions = document.createElement('div');
-            tagActions.className = 'tag-actions';
-            
-            const colorSelector = document.createElement('div');
-            colorSelector.className = 'tag-color-selector';
-            
-            const colorLabel = document.createElement('span');
-            colorLabel.className = 'color-label';
-            colorLabel.textContent = 'Color:';
-            
+            // Color column
+            const colorCell = document.createElement('td');
+            colorCell.className = 'tags-col';
             const colorOptions = document.createElement('div');
             colorOptions.className = 'tag-color-options';
+            colorOptions.style.display = 'flex';
+            colorOptions.style.gap = '8px';
+            colorOptions.style.flexWrap = 'wrap';
             
             this.tagColors.forEach(color => {
                 const colorBtn = document.createElement('button');
-                colorBtn.className = `tag-color-option ${tag.color === color.value ? 'selected' : ''}`;
+                const isSelected = tag.color === color.value;
+                colorBtn.className = `tag-color-option ${isSelected ? 'selected' : ''}`;
                 colorBtn.style.backgroundColor = color.value;
+                if (!isSelected) {
+                    colorBtn.style.opacity = '0.4';
+                    // Remove transparency on hover
+                    colorBtn.addEventListener('mouseenter', () => {
+                        colorBtn.style.opacity = '1';
+                    });
+                    colorBtn.addEventListener('mouseleave', () => {
+                        colorBtn.style.opacity = '0.4';
+                    });
+                }
                 colorBtn.title = color.name;
                 colorBtn.onclick = () => this.changeTagColor(tag.name, color.value);
                 colorOptions.appendChild(colorBtn);
             });
             
-            colorSelector.appendChild(colorLabel);
-            colorSelector.appendChild(colorOptions);
+            colorCell.appendChild(colorOptions);
+            
+            // Actions column
+            const actionsCell = document.createElement('td');
+            actionsCell.className = 'status-col';
+            const actionsContainer = document.createElement('div');
+            actionsContainer.className = 'table-actions';
+            actionsContainer.style.justifyContent = 'flex-end';
+            
+            // Edit button (only for editable tags)
+            if (!isDefault) {
+                const editBtn = document.createElement('button');
+                editBtn.className = 'table-action-btn small-icon';
+                editBtn.title = 'Edit tag name';
+                editBtn.innerHTML = `
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
+                    </svg>
+                `;
+                editBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.showEditTagModal(tag.name);
+                });
+                actionsContainer.appendChild(editBtn);
+            }
             
             const deleteBtn = document.createElement('button');
-            deleteBtn.className = 'delete-tag-btn';
-            deleteBtn.title = isDefault ? 'Default tags cannot be deleted' : 'Delete tag';
-            deleteBtn.disabled = isDefault;
+            deleteBtn.className = 'table-action-btn danger small-icon';
             if (isDefault) {
+                deleteBtn.title = 'Default tags cannot be deleted. These are system tags that help organize your tasks.';
+                deleteBtn.disabled = true;
                 deleteBtn.style.opacity = '0.3';
                 deleteBtn.style.cursor = 'not-allowed';
+            } else {
+                deleteBtn.title = 'Delete tag';
             }
             deleteBtn.innerHTML = `
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M10 11v6M14 11v6"/>
                 </svg>
             `;
             if (!isDefault) {
-                deleteBtn.onclick = () => this.deleteTag(tag.name);
+                deleteBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.deleteTag(tag.name);
+                });
             }
             
-            tagActions.appendChild(colorSelector);
-            tagActions.appendChild(deleteBtn);
+            actionsContainer.appendChild(deleteBtn);
+            actionsCell.appendChild(actionsContainer);
             
-            tagItem.appendChild(tagPreview);
-            tagItem.appendChild(tagActions);
+            // Append all cells to row
+            row.appendChild(nameCell);
+            row.appendChild(colorCell);
+            row.appendChild(actionsCell);
             
-            this.tagsList.appendChild(tagItem);
+            this.tagsTableBody.appendChild(row);
         });
     }
     
@@ -3983,9 +4562,9 @@ class TaskTimer {
         const taskTags = task.tags || [];
         const searchValue = '';
         
-        // Get filtered tags based on search
+        // Get filtered tags based on search (case-insensitive)
         const filteredTags = this.allTags.filter(tag => 
-            !searchValue || tag.name.includes(searchValue.toLowerCase())
+            !searchValue || tag.name.toLowerCase().includes(searchValue.toLowerCase())
         );
         
         let html = `
@@ -4032,16 +4611,16 @@ class TaskTimer {
         const listElement = document.getElementById(`tag-list-${taskId}`);
         if (!listElement) return;
         
-        // Filter tags
+        // Filter tags (case-insensitive search)
         const filteredTags = this.allTags.filter(tag => 
-            !searchValue || tag.name.includes(searchValue)
+            !searchValue || tag.name.toLowerCase().includes(searchValue)
         );
         
         listElement.innerHTML = '';
         
-        // Show filtered existing tags
+        // Show filtered existing tags (case-insensitive check)
         filteredTags.forEach(tag => {
-            const isChecked = taskTags.includes(tag.name);
+            const isChecked = taskTags.some(t => t.toLowerCase() === tag.name.toLowerCase());
             const item = document.createElement('div');
             item.className = 'tag-selector-item';
             item.innerHTML = `
@@ -4053,8 +4632,8 @@ class TaskTimer {
             listElement.appendChild(item);
         });
         
-        // Show create option if search value doesn't exist
-        if (searchValue && !this.allTags.find(t => t.name === searchValue)) {
+        // Show create option if search value doesn't exist (case-insensitive)
+        if (searchValue && !this.findTagByNameCaseInsensitive(searchValue)) {
             const createItem = document.createElement('div');
             createItem.className = 'tag-selector-item create';
             createItem.innerHTML = `<span>+ Create "${searchValue}"</span>`;
@@ -4068,7 +4647,7 @@ class TaskTimer {
     }
     
     createTagFromInput(input, taskId) {
-        const value = input.value.trim().toLowerCase();
+        const value = input.value.trim();
         if (!value) return;
         
         this.createAndAddTag(taskId, value);
@@ -4077,26 +4656,32 @@ class TaskTimer {
     }
     
     createAndAddTag(taskId, tagName) {
-        const normalizedTag = tagName.toLowerCase().trim();
-        if (!normalizedTag) return;
+        const trimmedTag = tagName.trim();
+        if (!trimmedTag) return;
         
-        // Add to allTags if new (with random color)
-        if (!this.allTags.find(t => t.name === normalizedTag)) {
+        // Find existing tag (case-insensitive) or create new one
+        const existingTag = this.findTagByNameCaseInsensitive(trimmedTag);
+        if (!existingTag) {
+            // Add to allTags if new (with random color, preserve case)
             const randomColor = this.tagColors[Math.floor(Math.random() * this.tagColors.length)];
             this.allTags.push({
-                name: normalizedTag,
+                name: trimmedTag,
                 color: randomColor.value
             });
         }
         
-        // Add to task
-        this.toggleTaskTag(taskId, normalizedTag);
+        // Use the actual tag name from allTags (case-sensitive match)
+        const actualTag = this.findTagByNameCaseInsensitive(trimmedTag);
+        if (actualTag) {
+            // Add to task using the actual tag name
+            this.toggleTaskTag(taskId, actualTag.name);
+        }
         this.saveToLocalStorage();
         this.renderFilterTabs();
     }
     
     getTagColor(tagName) {
-        const tag = this.allTags.find(t => t.name === tagName);
+        const tag = this.getTagByName(tagName);
         return tag ? tag.color : this.tagColors[0].value; // Default to purple
     }
     
@@ -4781,7 +5366,13 @@ class TaskTimer {
     }
     
     getTagByName(tagName) {
-        return this.allTags.find(t => t.name === tagName);
+        // Case-insensitive comparison
+        return this.allTags.find(t => t.name.toLowerCase() === tagName.toLowerCase());
+    }
+    
+    findTagByNameCaseInsensitive(tagName) {
+        // Helper to find tag with case-insensitive comparison
+        return this.allTags.find(t => t.name.toLowerCase() === tagName.toLowerCase());
     }
     
     toggleTaskTag(taskId, tagName) {
@@ -4793,11 +5384,18 @@ class TaskTimer {
             task.tags = [];
         }
         
-        // Toggle tag
-        if (task.tags.includes(tagName)) {
-            task.tags = task.tags.filter(tag => tag !== tagName);
+        // Find the actual tag name (case-sensitive) from allTags
+        const actualTag = this.getTagByName(tagName);
+        if (!actualTag) return;
+        
+        const actualTagName = actualTag.name;
+        
+        // Toggle tag (use case-insensitive check but store actual case)
+        const tagIndex = task.tags.findIndex(t => t.toLowerCase() === actualTagName.toLowerCase());
+        if (tagIndex !== -1) {
+            task.tags = task.tags.filter(tag => tag.toLowerCase() !== actualTagName.toLowerCase());
         } else {
-            task.tags.push(tagName);
+            task.tags.push(actualTagName);
         }
         
         // Update selector if open - refresh the list
@@ -4988,52 +5586,69 @@ class TaskTimer {
     
     // Tag Filter Methods
     renderFilterTabs() {
-        if (!this.tagFilterTabs) return;
+        if (!this.tagFilterTabs || !this.tagFilterTabsContainer) return;
         
-        // Only show tabs if there are tags
+        // Only show container if there are tags
         if (this.allTags.length === 0) {
-            this.tagFilterTabs.style.display = 'none';
+            this.tagFilterTabsContainer.style.display = 'none';
             return;
         }
         
-        this.tagFilterTabs.style.display = 'flex';
         this.tagFilterTabs.innerHTML = '';
         
-        // Create "All" tab
-        const allTab = document.createElement('button');
-        allTab.className = `filter-tab ${this.selectedTagFilter === 'all' ? 'active' : ''}`;
-        allTab.dataset.filter = 'all';
+        // Count tasks based on hideCompleted state
+        // If hideCompleted is false (completed tasks visible), count ALL tasks
+        // If hideCompleted is true (completed tasks hidden), count only non-completed tasks
+        const allCount = this.hideCompleted 
+            ? this.tasks.filter(task => !(task.isCompleted || task.state === this.TASK_STATES.COMPLETE)).length
+            : this.tasks.length;
         
-        // Count only non-completed tasks
-        const allCount = this.tasks.filter(task => 
-            !(task.isCompleted || task.state === this.TASK_STATES.COMPLETE)
-        ).length;
-        allTab.innerHTML = `
-            <span class="filter-tab-label">All</span>
-            <span class="filter-tab-badge">${allCount}</span>
-        `;
-        allTab.onclick = () => this.setTagFilter('all');
-        this.tagFilterTabs.appendChild(allTab);
-        
-        // Create tabs for each tag
-        this.allTags.forEach(tag => {
-            const tab = document.createElement('button');
-            tab.className = `filter-tab ${this.selectedTagFilter === tag.name ? 'active' : ''}`;
-            tab.dataset.filter = tag.name;
-            
-            // Count non-completed tasks with this tag
-            const tagCount = this.tasks.filter(task => 
-                !(task.isCompleted || task.state === this.TASK_STATES.COMPLETE) &&
-                task.tags && task.tags.includes(tag.name)
-            ).length;
-            
-            tab.innerHTML = `
-                <span class="filter-tab-label">${tag.name}</span>
-                <span class="filter-tab-badge" style="background: ${tag.color}20; color: ${tag.color}">${tagCount}</span>
+        // Only show "All" tab if it has 1 or more entries
+        if (allCount >= 1) {
+            const allTab = document.createElement('button');
+            allTab.className = `filter-tab ${this.selectedTagFilter === 'all' ? 'active' : ''}`;
+            allTab.dataset.filter = 'all';
+            allTab.innerHTML = `
+                <span class="filter-tab-label">All</span>
+                <span class="filter-tab-badge">${allCount}</span>
             `;
-            tab.onclick = () => this.setTagFilter(tag.name);
-            this.tagFilterTabs.appendChild(tab);
+            allTab.onclick = () => this.setTagFilter('all');
+            this.tagFilterTabs.appendChild(allTab);
+        }
+        
+        // Create tabs for each tag, but only if they have 1 or more entries
+        this.allTags.forEach(tag => {
+            // Count tasks with this tag based on hideCompleted state
+            const tagCount = this.hideCompleted
+                ? this.tasks.filter(task => 
+                    !(task.isCompleted || task.state === this.TASK_STATES.COMPLETE) &&
+                    task.tags && task.tags.some(t => t.toLowerCase() === tag.name.toLowerCase())
+                ).length
+                : this.tasks.filter(task => 
+                    task.tags && task.tags.some(t => t.toLowerCase() === tag.name.toLowerCase())
+                ).length;
+            
+            // Only create tab if count is 1 or more
+            if (tagCount >= 1) {
+                const tab = document.createElement('button');
+                tab.className = `filter-tab ${this.selectedTagFilter === tag.name ? 'active' : ''}`;
+                tab.dataset.filter = tag.name;
+                tab.innerHTML = `
+                    <span class="filter-tab-label">${tag.name}</span>
+                    <span class="filter-tab-badge" style="background: ${tag.color}20; color: ${tag.color}">${tagCount}</span>
+                `;
+                tab.onclick = () => this.setTagFilter(tag.name);
+                this.tagFilterTabs.appendChild(tab);
+            }
         });
+        
+        // Show container if there are any tasks in storage (even if all tabs are hidden)
+        // Only hide if there are 0 tasks total
+        if (this.tasks.length > 0) {
+            this.tagFilterTabsContainer.style.display = 'flex';
+        } else {
+            this.tagFilterTabsContainer.style.display = 'none';
+        }
     }
     
     renderKanbanFilterTabs() {
@@ -5045,13 +5660,7 @@ class TaskTimer {
             return;
         }
         
-        this.kanbanFilterTabs.style.display = 'flex';
         this.kanbanFilterTabs.innerHTML = '';
-        
-        // Create "All" tab
-        const allTab = document.createElement('button');
-        allTab.className = `filter-tab ${this.selectedTagFilter === 'all' ? 'active' : ''}`;
-        allTab.dataset.filter = 'all';
         
         // Count only non-completed tasks on the board
         const allCount = this.tasks.filter(task => 
@@ -5059,34 +5668,50 @@ class TaskTimer {
              task.state === this.TASK_STATES.IN_PROGRESS) &&
             !(task.isCompleted || task.state === this.TASK_STATES.COMPLETE)
         ).length;
-        allTab.innerHTML = `
-            <span class="filter-tab-label">All</span>
-            <span class="filter-tab-badge">${allCount}</span>
-        `;
-        allTab.onclick = () => this.setTagFilter('all');
-        this.kanbanFilterTabs.appendChild(allTab);
         
-        // Create tabs for each tag
+        // Only show "All" tab if it has 1 or more entries
+        if (allCount >= 1) {
+            const allTab = document.createElement('button');
+            allTab.className = `filter-tab ${this.selectedTagFilter === 'all' ? 'active' : ''}`;
+            allTab.dataset.filter = 'all';
+            allTab.innerHTML = `
+                <span class="filter-tab-label">All</span>
+                <span class="filter-tab-badge">${allCount}</span>
+            `;
+            allTab.onclick = () => this.setTagFilter('all');
+            this.kanbanFilterTabs.appendChild(allTab);
+        }
+        
+        // Create tabs for each tag, but only if they have 1 or more entries
         this.allTags.forEach(tag => {
-            const tab = document.createElement('button');
-            tab.className = `filter-tab ${this.selectedTagFilter === tag.name ? 'active' : ''}`;
-            tab.dataset.filter = tag.name;
-            
-            // Count non-completed tasks with this tag on the board
+            // Count non-completed tasks with this tag on the board (case-insensitive)
             const tagCount = this.tasks.filter(task => 
                 (task.state === this.TASK_STATES.TODAY || 
                  task.state === this.TASK_STATES.IN_PROGRESS) &&
                 !(task.isCompleted || task.state === this.TASK_STATES.COMPLETE) &&
-                task.tags && task.tags.includes(tag.name)
+                task.tags && task.tags.some(t => t.toLowerCase() === tag.name.toLowerCase())
             ).length;
             
-            tab.innerHTML = `
-                <span class="filter-tab-label">${tag.name}</span>
-                <span class="filter-tab-badge" style="background: ${tag.color}20; color: ${tag.color}">${tagCount}</span>
-            `;
-            tab.onclick = () => this.setTagFilter(tag.name);
-            this.kanbanFilterTabs.appendChild(tab);
+            // Only create tab if count is 1 or more
+            if (tagCount >= 1) {
+                const tab = document.createElement('button');
+                tab.className = `filter-tab ${this.selectedTagFilter === tag.name ? 'active' : ''}`;
+                tab.dataset.filter = tag.name;
+                tab.innerHTML = `
+                    <span class="filter-tab-label">${tag.name}</span>
+                    <span class="filter-tab-badge" style="background: ${tag.color}20; color: ${tag.color}">${tagCount}</span>
+                `;
+                tab.onclick = () => this.setTagFilter(tag.name);
+                this.kanbanFilterTabs.appendChild(tab);
+            }
         });
+        
+        // Show or hide tabs container based on whether any tabs were added
+        if (this.kanbanFilterTabs.children.length > 0) {
+            this.kanbanFilterTabs.style.display = 'flex';
+        } else {
+            this.kanbanFilterTabs.style.display = 'none';
+        }
     }
     
     setTagFilter(tagName) {
