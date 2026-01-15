@@ -2712,8 +2712,6 @@ class TaskTimer {
             task.state = this.TASK_STATES.COMPLETE;
             // Log history for completion
             this.addHistoryEntry(task.id, task.name, 'Task completed');
-            // Play completion video
-            this.playCompletionVideo();
         } else {
             task.completedAt = null;
             task.uncheckedAt = Date.now(); // Track when unchecked
@@ -2737,33 +2735,33 @@ class TaskTimer {
         this.renderTasks();
         this.renderFilterTabs();
         this.renderKanbanFilterTabs();
+        
+        // Trigger pulse animation after render if task was just completed
+        if (task.isCompleted && !wasCompleted) {
+            // Small delay to ensure DOM is updated
+            setTimeout(() => {
+                this.pulseCompletedTable();
+            }, 50);
+        }
     }
     
-    playCompletionVideo() {
-        const video = document.getElementById('completion-video');
-        if (!video) return;
+    pulseCompletedTable() {
+        const completedTableContainer = document.querySelector('.tasks-table-container[data-group="completed"]');
+        if (!completedTableContainer) return;
         
-        // Reset video to start
-        video.currentTime = 0;
+        // Remove any existing pulse class
+        completedTableContainer.classList.remove('pulse');
         
-        // Fade in over 0.5 seconds
-        video.classList.add('show');
+        // Force reflow to restart animation
+        void completedTableContainer.offsetWidth;
         
-        // After 0.5 seconds (fade in) + 0.25 seconds (visible) = 0.75 seconds, start fade out
+        // Add pulse class to trigger animation
+        completedTableContainer.classList.add('pulse');
+        
+        // Remove class after animation completes
         setTimeout(() => {
-            video.classList.remove('show');
-            
-            // Reset after fade out completes (0.5 seconds)
-            setTimeout(() => {
-                video.pause();
-                video.currentTime = 0;
-            }, 500);
-        }, 750);
-        
-        // Play the video
-        video.play().catch(err => {
-            console.log('Video play error:', err);
-        });
+            completedTableContainer.classList.remove('pulse');
+        }, 600);
     }
     
     updateTaskRowContent(row, task) {
