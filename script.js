@@ -8,6 +8,10 @@ class TaskTimer {
         this.interval = null;
         this.pendingUndoAction = null;
         this.snackbarTimeoutId = null;
+        this.snackbarProgressInterval = null;
+        this.undoHistory = []; // Stores last 5 actions for undo/redo
+        this.redoHistory = []; // Stores actions for redo
+        this.maxHistorySize = 5;
         // Default tags that cannot be deleted
         this.defaultTags = ['Personal', 'Chores', 'Work'];
         this.allTags = [
@@ -38,6 +42,7 @@ class TaskTimer {
         
         this.initializeElements();
         this.loadFromLocalStorage();
+        this.loadGroupNames();
         this.bindEvents();
         this.updateDisplay();
         this.renderFilterTabs();
@@ -196,6 +201,14 @@ class TaskTimer {
             } else {
                 this.history = [];
             }
+            
+            // Load sidebar state
+            const sidebarExpanded = localStorage.getItem('sidebar_expanded');
+            if (sidebarExpanded === 'true' && this.sidebar) {
+                this.sidebar.classList.add('expanded');
+            }
+            // Update icon based on loaded state
+            this.updateSidebarIcon();
         } catch (error) {
             console.error('Error loading from localStorage:', error);
         }
@@ -391,6 +404,7 @@ class TaskTimer {
         // Tasks view elements
         this.thisWeekTasksBody = document.getElementById('this-week-tasks-body');
         this.laterTasksBody = document.getElementById('later-tasks-body');
+        this.completedTasksBody = document.getElementById('completed-tasks-body');
         
         // Group selector elements
         this.groupThisWeekRadio = document.getElementById('group-this-week');
@@ -462,8 +476,6 @@ class TaskTimer {
         this.tagFilterTabsContainer = document.getElementById('tag-filter-tabs-container');
         this.tagFilterTabs = document.getElementById('tag-filter-tabs');
         this.kanbanFilterTabs = document.getElementById('kanban-filter-tabs');
-        this.hideCompletedToggle = document.getElementById('hide-completed-toggle');
-        this.hideCompleted = false;
         
         // Emoji selector elements
         this.emojiPickerBtn = document.getElementById('emoji-picker-btn');
@@ -472,6 +484,11 @@ class TaskTimer {
         this.emojiSearchInput = document.getElementById('emoji-search-input');
         this.emojiCategoryTabs = document.getElementById('emoji-category-tabs');
         this.emojiGridContainer = document.getElementById('emoji-grid-container');
+        
+        // Sidebar elements
+        this.sidebar = document.getElementById('sidebar');
+        this.sidebarToggleBtn = document.getElementById('sidebar-toggle-btn');
+        this.sidebarToggleIcon = document.getElementById('sidebar-toggle-icon');
         
         // Track if emoji was manually selected (to prevent auto-updates)
         this.emojiManuallySelected = false;
@@ -1289,12 +1306,53 @@ class TaskTimer {
             });
         }
         
-        // Hide completed toggle
-        if (this.hideCompletedToggle) {
-            this.hideCompletedToggle.addEventListener('change', () => {
-                this.hideCompleted = this.hideCompletedToggle.checked;
-                this.updateDisplay();
-                this.renderFilterTabs(); // Refresh tabs to reflect new counts
+        // Group collapse/expand buttons
+        document.querySelectorAll('.tasks-section-collapse-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const group = btn.dataset.group;
+                this.toggleGroupCollapse(group);
+            });
+        });
+        
+        // Group add task buttons
+        document.querySelectorAll('.tasks-section-add-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const group = btn.dataset.group;
+                this.showAddTaskModal(null, group);
+            });
+        });
+        
+        // Group overflow buttons
+        document.querySelectorAll('.tasks-section-overflow-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const group = btn.dataset.group;
+                this.toggleOverflowMenu(group);
+            });
+        });
+        
+        // Overflow menu items
+        document.querySelectorAll('.overflow-menu-item').forEach(item => {
+            item.addEventListener('click', (e) => {
+                const action = item.dataset.action;
+                const group = item.dataset.group;
+                this.handleOverflowAction(action, group);
+            });
+        });
+        
+        // Close overflow menus when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.tasks-section-overflow-container')) {
+                document.querySelectorAll('.tasks-section-overflow-menu').forEach(menu => {
+                    menu.classList.remove('show');
+                });
+            }
+        });
+        
+        // Sidebar toggle
+        if (this.sidebarToggleBtn) {
+            this.sidebarToggleBtn.addEventListener('click', () => {
+                this.toggleSidebar();
             });
         }
         
@@ -1535,9 +1593,33 @@ class TaskTimer {
         
         // Drag and drop events
         this.setupDragAndDrop();
+        
+        // Keyboard shortcuts for undo/redo
+        document.addEventListener('keydown', (e) => {
+            // Check if user is typing in an input field
+            const isInputFocused = e.target.tagName === 'INPUT' || 
+                                  e.target.tagName === 'TEXTAREA' || 
+                                  e.target.isContentEditable;
+            
+            // Ctrl+Z or Cmd+Z for undo
+            if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+                if (!isInputFocused || (e.target.tagName === 'INPUT' && e.target.type === 'text' && e.target.selectionStart === 0 && e.target.selectionEnd === 0)) {
+                    e.preventDefault();
+                    this.performUndo();
+                }
+            }
+            
+            // Ctrl+Shift+Z or Cmd+Shift+Z for redo
+            if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'z') {
+                if (!isInputFocused) {
+                    e.preventDefault();
+                    this.performRedo();
+                }
+            }
+        });
     }
     
-    showAddTaskModal(taskId = null) {
+    showAddTaskModal(taskId = null, preSelectedGroup = null) {
         if (!this.addTaskModal) return;
         
         const task = taskId ? this.tasks.find(t => t.id === taskId) : null;
@@ -1605,9 +1687,14 @@ class TaskTimer {
                 }
             }
         } else {
-            // Default to thisWeek for new tasks
-            if (this.groupThisWeekRadio) {
-                this.groupThisWeekRadio.checked = true;
+            // Use preSelectedGroup if provided, otherwise default to thisWeek
+            const targetGroup = preSelectedGroup || 'thisWeek';
+            if (this.groupThisWeekRadio && this.groupLaterRadio) {
+                if (targetGroup === 'later') {
+                    this.groupLaterRadio.checked = true;
+                } else {
+                    this.groupThisWeekRadio.checked = true;
+                }
             }
         }
         
@@ -1874,7 +1961,7 @@ class TaskTimer {
     }
     
     renderTasksTable(tasks) {
-        if (!this.thisWeekTasksBody || !this.laterTasksBody) return;
+        if (!this.thisWeekTasksBody || !this.laterTasksBody || !this.completedTasksBody) return;
         
         // Ensure all tasks have a group (default to thisWeek)
         tasks.forEach(task => {
@@ -1883,99 +1970,121 @@ class TaskTimer {
             }
         });
         
-        // Filter out completed tasks if hide completed toggle is on
-        if (this.hideCompleted) {
-            tasks = tasks.filter(task => 
-                !(task.isCompleted || task.state === this.TASK_STATES.COMPLETE)
-            );
-        }
+        // Separate completed and non-completed tasks
+        const allCompletedTasks = tasks.filter(task => 
+            task.isCompleted || task.state === this.TASK_STATES.COMPLETE
+        );
         
-        // Split tasks by group - show all tasks regardless of board state
-        let thisWeekTasks = tasks.filter(task => 
+        // Filter out completed tasks from regular groups
+        let nonCompletedTasks = tasks.filter(task => 
+            !(task.isCompleted || task.state === this.TASK_STATES.COMPLETE)
+        );
+        
+        // Split non-completed tasks by group
+        let thisWeekTasks = nonCompletedTasks.filter(task => 
             (!task.group || task.group === 'thisWeek')
         );
-        let laterTasks = tasks.filter(task => 
+        let laterTasks = nonCompletedTasks.filter(task => 
             task.group === 'later'
         );
         
-        // Sort tasks: undone first, then completed (newly checked at top of completed section)
+        // Sort tasks: use orderIndex for non-completed tasks
         const sortTasks = (taskList) => {
             return taskList.sort((a, b) => {
-                const aCompleted = a.isCompleted || a.state === this.TASK_STATES.COMPLETE;
-                const bCompleted = b.isCompleted || b.state === this.TASK_STATES.COMPLETE;
+                const aOrder = a.orderIndex !== undefined ? a.orderIndex : 9999;
+                const bOrder = b.orderIndex !== undefined ? b.orderIndex : 9999;
                 
-                // Undone tasks come first
-                if (!aCompleted && bCompleted) return -1;
-                if (aCompleted && !bCompleted) return 1;
-                
-                // If both completed, sort by completion time DESCENDING (most recent/newly checked at top)
-                if (aCompleted && bCompleted) {
-                    const aTime = a.completedAt || 0;
-                    const bTime = b.completedAt || 0;
-                    return bTime - aTime; // Later completion comes first (newly checked at top)
-                }
-                
-                // If both undone, prioritize manual order (orderIndex), then uncheckedAt
-                if (!aCompleted && !bCompleted) {
-                    const aOrder = a.orderIndex !== undefined ? a.orderIndex : 9999;
-                    const bOrder = b.orderIndex !== undefined ? b.orderIndex : 9999;
-                    
-                    // If both have orderIndex set (manually reordered), use that
-                    if (a.orderIndex !== undefined && b.orderIndex !== undefined) {
-                        return aOrder - bOrder;
-                    }
-                    
-                    // If only one has orderIndex, prioritize it
-                    if (a.orderIndex !== undefined && b.orderIndex === undefined) return -1;
-                    if (a.orderIndex === undefined && b.orderIndex !== undefined) return 1;
-                    
-                    // Neither has orderIndex, use uncheckedAt logic for newly unchecked tasks
-                    const aUncheckedTime = a.uncheckedAt || 0;
-                    const bUncheckedTime = b.uncheckedAt || 0;
-                    // If one has uncheckedAt and other doesn't, put the one with uncheckedAt at bottom
-                    if (aUncheckedTime > 0 && bUncheckedTime === 0) return 1;
-                    if (aUncheckedTime === 0 && bUncheckedTime > 0) return -1;
-                    // If both have uncheckedAt, later unchecked goes to bottom
-                    if (aUncheckedTime > 0 && bUncheckedTime > 0) {
-                        return aUncheckedTime - bUncheckedTime;
-                    }
-                    
-                    // Fallback to orderIndex (which might be 9999 for both)
+                // If both have orderIndex set (manually reordered), use that
+                if (a.orderIndex !== undefined && b.orderIndex !== undefined) {
                     return aOrder - bOrder;
                 }
                 
-                return 0;
+                // If only one has orderIndex, prioritize it
+                if (a.orderIndex !== undefined && b.orderIndex === undefined) return -1;
+                if (a.orderIndex === undefined && b.orderIndex !== undefined) return 1;
+                
+                // Neither has orderIndex, use uncheckedAt logic for newly unchecked tasks
+                const aUncheckedTime = a.uncheckedAt || 0;
+                const bUncheckedTime = b.uncheckedAt || 0;
+                // If one has uncheckedAt and other doesn't, put the one with uncheckedAt at bottom
+                if (aUncheckedTime > 0 && bUncheckedTime === 0) return 1;
+                if (aUncheckedTime === 0 && bUncheckedTime > 0) return -1;
+                // If both have uncheckedAt, later unchecked goes to bottom
+                if (aUncheckedTime > 0 && bUncheckedTime > 0) {
+                    return aUncheckedTime - bUncheckedTime;
+                }
+                
+                // Fallback to orderIndex (which might be 9999 for both)
+                return aOrder - bOrder;
+            });
+        };
+        
+        // Sort completed tasks by completion time DESCENDING (most recent first)
+        const sortCompletedTasks = (taskList) => {
+            return taskList.sort((a, b) => {
+                const aTime = a.completedAt || 0;
+                const bTime = b.completedAt || 0;
+                return bTime - aTime; // Later completion comes first
             });
         };
         
         thisWeekTasks = sortTasks(thisWeekTasks);
         laterTasks = sortTasks(laterTasks);
+        const completedTasks = sortCompletedTasks(allCompletedTasks);
         
-        // Clear both tables
+        // Clear all tables
         this.thisWeekTasksBody.innerHTML = '';
         this.laterTasksBody.innerHTML = '';
+        this.completedTasksBody.innerHTML = '';
         
         // Render This Week tasks
-        if (thisWeekTasks.length === 0) {
-            const row = document.createElement('tr');
-            row.innerHTML = `<td colspan="6" style="text-align: center; padding: 40px; color: var(--text-tertiary);">No tasks this week. Click "Add Task" to create one!</td>`;
-            this.thisWeekTasksBody.appendChild(row);
-        } else {
-            thisWeekTasks.forEach(task => {
-                this.renderTaskRow(task, this.thisWeekTasksBody);
-            });
-        }
+        thisWeekTasks.forEach(task => {
+            this.renderTaskRow(task, this.thisWeekTasksBody);
+        });
         
         // Render Later tasks
-        if (laterTasks.length === 0) {
-            const row = document.createElement('tr');
-            row.innerHTML = `<td colspan="6" style="text-align: center; padding: 40px; color: var(--text-tertiary);">No tasks for later.</td>`;
-            this.laterTasksBody.appendChild(row);
-        } else {
-            laterTasks.forEach(task => {
-                this.renderTaskRow(task, this.laterTasksBody);
-            });
+        laterTasks.forEach(task => {
+            this.renderTaskRow(task, this.laterTasksBody);
+        });
+        
+        // Render Completed tasks
+        completedTasks.forEach(task => {
+            this.renderTaskRow(task, this.completedTasksBody);
+        });
+        
+        // Hide/show table containers based on whether they have tasks
+        const thisWeekContainer = document.querySelector('.tasks-table-container[data-group="thisWeek"]');
+        const laterContainer = document.querySelector('.tasks-table-container[data-group="later"]');
+        const completedContainer = document.querySelector('.tasks-table-container[data-group="completed"]');
+        
+        if (thisWeekContainer) {
+            if (thisWeekTasks.length === 0) {
+                thisWeekContainer.classList.add('empty');
+            } else {
+                thisWeekContainer.classList.remove('empty');
+            }
         }
+        if (laterContainer) {
+            if (laterTasks.length === 0) {
+                laterContainer.classList.add('empty');
+            } else {
+                laterContainer.classList.remove('empty');
+            }
+        }
+        if (completedContainer) {
+            if (completedTasks.length === 0) {
+                completedContainer.classList.add('empty');
+            } else {
+                completedContainer.classList.remove('empty');
+            }
+        }
+        
+        // Update task counts
+        this.updateGroupCounts({
+            thisWeek: thisWeekTasks.length,
+            later: laterTasks.length,
+            completed: completedTasks.length
+        });
         
         // Setup drag and drop for task rows
         this.setupTaskTableDragAndDrop();
@@ -2030,12 +2139,6 @@ class TaskTimer {
         nameSpan.addEventListener('click', () => this.editTaskFromTable(task.id));
         nameContainer.appendChild(nameSpan);
         nameCell.appendChild(nameContainer);
-        
-        // Description column
-        const descCell = document.createElement('td');
-        descCell.className = 'description-col';
-        descCell.textContent = task.description || '—';
-        descCell.style.color = task.description ? 'var(--text-secondary)' : 'var(--text-tertiary)';
         
         // Tags column
         const tagsCell = document.createElement('td');
@@ -2124,10 +2227,9 @@ class TaskTimer {
         });
         deleteCell.appendChild(deleteBtn);
         
-        // Append all cells
+        // Append all cells (no description column)
         row.appendChild(checkboxCell);
         row.appendChild(nameCell);
-        row.appendChild(descCell);
         row.appendChild(tagsCell);
         row.appendChild(statusCell);
         row.appendChild(deleteCell);
@@ -2172,7 +2274,7 @@ class TaskTimer {
             }
         });
         
-        // Set up tbody listeners for drop zones
+        // Set up tbody listeners for drop zones (only for non-completed groups)
         [this.thisWeekTasksBody, this.laterTasksBody].forEach(tbody => {
             if (!tbody) return;
             
@@ -2297,6 +2399,169 @@ class TaskTimer {
             tbody.addEventListener('dragleave', tbody._dragleaveHandler);
             tbody.addEventListener('drop', tbody._dropHandler);
         });
+    }
+    
+    toggleGroupCollapse(group) {
+        const container = document.querySelector(`.tasks-table-container[data-group="${group}"]`);
+        const btn = document.querySelector(`.tasks-section-collapse-btn[data-group="${group}"]`);
+        if (container && btn) {
+            container.classList.toggle('collapsed');
+            btn.classList.toggle('collapsed');
+        }
+    }
+    
+    toggleOverflowMenu(group) {
+        const menu = document.querySelector(`.tasks-section-overflow-menu[data-group="${group}"]`);
+        if (menu) {
+            // Close all other menus first
+            document.querySelectorAll('.tasks-section-overflow-menu').forEach(m => {
+                if (m !== menu) {
+                    m.classList.remove('show');
+                }
+            });
+            menu.classList.toggle('show');
+        }
+    }
+    
+    toggleSidebar() {
+        if (this.sidebar) {
+            this.sidebar.classList.toggle('expanded');
+            // Save state to localStorage
+            const isExpanded = this.sidebar.classList.contains('expanded');
+            localStorage.setItem('sidebar_expanded', isExpanded ? 'true' : 'false');
+            // Update icon based on state
+            this.updateSidebarIcon();
+        }
+    }
+    
+    updateSidebarIcon() {
+        if (this.sidebarToggleIcon && this.sidebar) {
+            const isExpanded = this.sidebar.classList.contains('expanded');
+            if (isExpanded) {
+                // When expanded, show close icon (to collapse)
+                this.sidebarToggleIcon.textContent = 'left_panel_close';
+            } else {
+                // When collapsed, show open icon (to expand)
+                this.sidebarToggleIcon.textContent = 'left_panel_open';
+            }
+        }
+    }
+    
+    handleOverflowAction(action, group) {
+        this.toggleOverflowMenu(group); // Close menu
+        
+        if (action === 'rename') {
+            this.renameGroup(group);
+        } else if (action === 'delete-group') {
+            if (group === 'completed') {
+                // Can't delete completed group
+                return;
+            }
+            if (confirm(`Are you sure you want to delete the "${this.getGroupName(group)}" group? All tasks in this group will be moved to "This Week".`)) {
+                this.deleteGroup(group);
+            }
+        } else if (action === 'delete-all') {
+            if (confirm(`Are you sure you want to delete all tasks in "${this.getGroupName(group)}"? This action cannot be undone.`)) {
+                this.deleteAllTasksInGroup(group);
+            }
+        }
+    }
+    
+    getGroupName(group) {
+        const titleElement = document.querySelector(`.tasks-section-title[data-group="${group}"]`);
+        return titleElement ? titleElement.textContent : group;
+    }
+    
+    renameGroup(group) {
+        if (group === 'completed') {
+            // Can't rename completed group
+            return;
+        }
+        const titleElement = document.querySelector(`.tasks-section-title[data-group="${group}"]`);
+        if (!titleElement) return;
+        
+        const currentName = titleElement.textContent;
+        const newName = prompt('Enter new group name:', currentName);
+        if (newName && newName.trim() && newName.trim() !== currentName) {
+            titleElement.textContent = newName.trim();
+            // Store custom group names in localStorage
+            this.saveGroupNames();
+        }
+    }
+    
+    deleteGroup(group) {
+        if (group === 'completed') return;
+        
+        // Move all tasks from this group to thisWeek
+        this.tasks.forEach(task => {
+            if (task.group === group) {
+                task.group = 'thisWeek';
+            }
+        });
+        
+        this.saveToLocalStorage();
+        this.renderTasks();
+    }
+    
+    deleteAllTasksInGroup(group) {
+        const tasksToDelete = this.tasks.filter(task => {
+            if (group === 'completed') {
+                return task.isCompleted || task.state === this.TASK_STATES.COMPLETE;
+            } else {
+                return task.group === group;
+            }
+        });
+        
+        const count = tasksToDelete.length;
+        const groupName = this.getGroupName(group);
+        
+        tasksToDelete.forEach(task => {
+            this.deleteTask(task.id, false); // false = don't show snackbar for each
+        });
+        
+        this.renderTasks();
+        
+        // Show a single snackbar for bulk deletion
+        if (count > 0) {
+            this.showSnackbar(`Deleted ${count} task${count > 1 ? 's' : ''} from ${groupName}`);
+        }
+    }
+    
+    updateGroupCounts(counts) {
+        Object.keys(counts).forEach(group => {
+            const countElement = document.querySelector(`.tasks-section-count[data-group="${group}"]`);
+            if (countElement) {
+                countElement.textContent = counts[group];
+            }
+        });
+    }
+    
+    saveGroupNames() {
+        const groupNames = {};
+        document.querySelectorAll('.tasks-section-title[data-group]').forEach(title => {
+            const group = title.dataset.group;
+            if (group !== 'completed') {
+                groupNames[group] = title.textContent;
+            }
+        });
+        localStorage.setItem('pomodoro_group_names', JSON.stringify(groupNames));
+    }
+    
+    loadGroupNames() {
+        try {
+            const saved = localStorage.getItem('pomodoro_group_names');
+            if (saved) {
+                const groupNames = JSON.parse(saved);
+                Object.keys(groupNames).forEach(group => {
+                    const titleElement = document.querySelector(`.tasks-section-title[data-group="${group}"]`);
+                    if (titleElement) {
+                        titleElement.textContent = groupNames[group];
+                    }
+                });
+            }
+        } catch (e) {
+            console.error('Error loading group names:', e);
+        }
     }
     
     getDragAfterRow(tbody, y) {
@@ -2429,38 +2694,15 @@ class TaskTimer {
         
         // Find the current row element
         const currentRow = document.querySelector(`tr[data-task-id="${taskId}"]`);
-        if (!currentRow) {
-            // Fallback if row not found
-            task.isCompleted = !task.isCompleted;
-            if (task.isCompleted) {
-                task.completedAt = Date.now();
-                task.uncheckedAt = null;
-                task.state = this.TASK_STATES.COMPLETE;
-                // Log history for completion
-                this.addHistoryEntry(task.id, task.name, 'Task completed');
-            } else {
-                task.completedAt = null;
-                task.uncheckedAt = Date.now();
-                if (task.state === this.TASK_STATES.COMPLETE) {
-                    task.state = this.TASK_STATES.NONE;
-                }
-            }
-            this.saveToLocalStorage();
-            this.renderTasks();
-            this.renderKanbanFilterTabs();
-            return;
+        
+        // Preserve original group when completing (so we can restore it when uncompleting)
+        const wasCompleted = task.isCompleted || task.state === this.TASK_STATES.COMPLETE;
+        if (!wasCompleted && !task.originalGroup) {
+            // Store original group before completing
+            task.originalGroup = task.group || 'thisWeek';
         }
         
-        const tbody = currentRow.closest('tbody');
-        const taskGroup = task.group || 'thisWeek';
-        const targetTbody = taskGroup === 'later' ? this.laterTasksBody : this.thisWeekTasksBody;
-        
-        // Store initial position for FLIP animation
-        const firstRect = currentRow.getBoundingClientRect();
-        const firstTop = firstRect.top;
-        
         // Toggle completion
-        const wasCompleted = task.isCompleted;
         task.isCompleted = !task.isCompleted;
         
         // Track completion/uncheck time
@@ -2470,11 +2712,18 @@ class TaskTimer {
             task.state = this.TASK_STATES.COMPLETE;
             // Log history for completion
             this.addHistoryEntry(task.id, task.name, 'Task completed');
+            // Play completion video
+            this.playCompletionVideo();
         } else {
             task.completedAt = null;
             task.uncheckedAt = Date.now(); // Track when unchecked
             if (task.state === this.TASK_STATES.COMPLETE) {
                 task.state = this.TASK_STATES.NONE;
+            }
+            // Restore original group when uncompleting
+            if (task.originalGroup) {
+                task.group = task.originalGroup;
+                task.originalGroup = null; // Clear the stored original group
             }
         }
         
@@ -2483,199 +2732,38 @@ class TaskTimer {
             this.pauseTask(taskId);
         }
         
-        // If hideCompleted is ON and task is being completed, do poof animation
-        if (this.hideCompleted && task.isCompleted && !wasCompleted) {
-            // Poof animation: scale down and fade out
-            currentRow.style.willChange = 'transform, opacity';
-            currentRow.style.transition = 'transform 0.35s cubic-bezier(0.4, 0, 1, 1), opacity 0.35s ease-out';
-            currentRow.style.transformOrigin = 'center';
-            
-            // Force reflow to ensure initial state is applied
-            currentRow.offsetHeight;
-            
-            // Trigger animation
-            requestAnimationFrame(() => {
-                requestAnimationFrame(() => {
-                    currentRow.style.transform = 'scale(0.7)';
-                    currentRow.style.opacity = '0';
-                });
-            });
-            
-            // Remove row after animation completes
-            const removeRow = () => {
-                currentRow.remove();
-                this.saveToLocalStorage();
-                this.renderTasks();
-                this.renderFilterTabs();
-                this.renderKanbanFilterTabs();
-            };
-            
-            currentRow.addEventListener('transitionend', removeRow, { once: true });
-            // Fallback in case transitionend doesn't fire
-            setTimeout(removeRow, 400);
-            return;
-        }
-        
-        // Update row content immediately
-        this.updateTaskRowContent(currentRow, task);
-        
-        // Store original position for animation
-        const originalTbody = tbody;
-        const originalNextSibling = currentRow.nextSibling;
-        
-        // Get visible tasks from the target tbody (accounts for tag filtering)
-        const visibleRows = Array.from(targetTbody.querySelectorAll('tr[data-task-id]'));
-        const visibleTaskIds = visibleRows
-            .filter(row => row !== currentRow)
-            .map(row => parseInt(row.dataset.taskId));
-        
-        // Get all tasks in the same group and filter to only visible ones for sorting
-        const sameGroupTasks = this.tasks.filter(t => {
-            const inGroup = (t.group || 'thisWeek') === taskGroup;
-            return inGroup && (visibleTaskIds.includes(t.id) || t.id === taskId);
-        });
-        
-        // Sort tasks to determine target position (matching renderTasksTable logic)
-        const sortedTasks = sameGroupTasks.sort((a, b) => {
-            const aCompleted = a.isCompleted || a.state === this.TASK_STATES.COMPLETE;
-            const bCompleted = b.isCompleted || b.state === this.TASK_STATES.COMPLETE;
-            
-            // Undone tasks come first
-            if (!aCompleted && bCompleted) return -1;
-            if (aCompleted && !bCompleted) return 1;
-            
-            // If both completed, sort by completion time DESCENDING (most recent/newly checked at top)
-            if (aCompleted && bCompleted) {
-                const aTime = a.completedAt || 0;
-                const bTime = b.completedAt || 0;
-                return bTime - aTime; // Later completion comes first (newly checked at top)
-            }
-            
-            // If both undone, sort by uncheckedAt or maintain order (newly unchecked at bottom)
-            if (!aCompleted && !bCompleted) {
-                const aUncheckedTime = a.uncheckedAt || 0;
-                const bUncheckedTime = b.uncheckedAt || 0;
-                // If one has uncheckedAt and other doesn't, put the one with uncheckedAt at bottom
-                if (aUncheckedTime > 0 && bUncheckedTime === 0) return 1;
-                if (aUncheckedTime === 0 && bUncheckedTime > 0) return -1;
-                // If both have uncheckedAt, later unchecked goes to bottom
-                if (aUncheckedTime > 0 && bUncheckedTime > 0) {
-                    return aUncheckedTime - bUncheckedTime; // Earlier unchecked comes first, later at bottom
-                }
-                // Otherwise maintain original order
-                return 0;
-            }
-            
-            return 0;
-        });
-        
-        // Find where this task should be positioned in sorted order
-        const taskIndex = sortedTasks.findIndex(t => t.id === taskId);
-        
-        // Find the reference row based on sorted order
-        // The reference row is the task that should come AFTER our task in the sorted order
-        // We insert BEFORE the reference row to place our task in the correct position
-        let referenceRow = null;
-        
-        if (taskIndex < sortedTasks.length - 1) {
-            // There's a next task in sorted order - find it in the DOM
-            const nextTaskId = sortedTasks[taskIndex + 1].id;
-            const nextRow = targetTbody.querySelector(`tr[data-task-id="${nextTaskId}"]`);
-            // Only use as reference if it exists and is not the current row
-            if (nextRow && nextRow !== currentRow) {
-                referenceRow = nextRow;
-            }
-        }
-        
-        // If no reference row found (we're at the end), we'll append at the bottom
-        
-        // Check if we actually need to move (same tbody and position)
-        const needsMove = targetTbody !== originalTbody || 
-                         (referenceRow && referenceRow !== originalNextSibling) ||
-                         (!referenceRow && originalNextSibling) ||
-                         (referenceRow && !originalNextSibling && targetTbody === originalTbody);
-        
-        if (!needsMove) {
-            // No move needed, just update content and save
-            this.saveToLocalStorage();
-            return;
-        }
-        
-        // Temporarily remove row to allow other rows to settle
-        // Use visibility to hide without affecting layout during removal
-        currentRow.style.visibility = 'hidden';
-        currentRow.style.willChange = 'transform';
-        const placeholder = document.createComment('placeholder');
-        if (currentRow.parentNode) {
-            currentRow.parentNode.insertBefore(placeholder, currentRow);
-            currentRow.remove();
-        }
-        
-        // Insert row at new position
-        if (targetTbody !== originalTbody) {
-            // Moving to different tbody
-            if (referenceRow) {
-                targetTbody.insertBefore(currentRow, referenceRow);
-            } else {
-                targetTbody.appendChild(currentRow);
-            }
-        } else {
-            // Same tbody, reordering
-            if (referenceRow) {
-                targetTbody.insertBefore(currentRow, referenceRow);
-            } else {
-                targetTbody.appendChild(currentRow);
-            }
-        }
-        
-        // Get final position for FLIP animation
-        const lastRect = currentRow.getBoundingClientRect();
-        const lastTop = lastRect.top;
-        
-        // Invert: Move row back to original position using transform
-        const invert = firstTop - lastTop;
-        currentRow.style.transform = `translateY(${invert}px)`;
-        currentRow.style.transition = 'none';
-        currentRow.style.opacity = '0.95';
-        currentRow.style.visibility = 'visible';
-        
-        // Remove placeholder
-        if (placeholder.parentNode) {
-            placeholder.parentNode.removeChild(placeholder);
-        }
-        
-        // Force reflow to apply transform
-        currentRow.offsetHeight;
-        
-        // Play: Animate to final position with fast start, gentle ease-out at end
-        requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-                currentRow.style.transition = 'transform 0.5s cubic-bezier(0.1, 0, 0.05, 1), opacity 0.5s ease-out';
-                currentRow.style.transform = 'translateY(0)';
-                currentRow.style.opacity = '1';
-                
-                // Clean up after animation
-                const cleanup = () => {
-                    currentRow.style.transform = '';
-                    currentRow.style.transition = '';
-                    currentRow.style.visibility = '';
-                    currentRow.style.opacity = '';
-                    currentRow.style.willChange = '';
-                };
-                
-                currentRow.addEventListener('transitionend', cleanup, { once: true });
-                // Fallback cleanup in case transitionend doesn't fire
-                setTimeout(cleanup, 550);
-            });
-        });
-        
+        // Save and re-render (this will move completed tasks to Completed group and uncompleted back to original group)
         this.saveToLocalStorage();
+        this.renderTasks();
+        this.renderFilterTabs();
+        this.renderKanbanFilterTabs();
+    }
+    
+    playCompletionVideo() {
+        const video = document.getElementById('completion-video');
+        if (!video) return;
         
-        // Re-render after a delay to ensure sync (but animation should be done by then)
+        // Reset video to start
+        video.currentTime = 0;
+        
+        // Fade in over 0.5 seconds
+        video.classList.add('show');
+        
+        // After 0.5 seconds (fade in) + 0.25 seconds (visible) = 0.75 seconds, start fade out
         setTimeout(() => {
-            this.renderTasks();
-            this.renderKanbanFilterTabs();
-        }, 550);
+            video.classList.remove('show');
+            
+            // Reset after fade out completes (0.5 seconds)
+            setTimeout(() => {
+                video.pause();
+                video.currentTime = 0;
+            }, 500);
+        }, 750);
+        
+        // Play the video
+        video.play().catch(err => {
+            console.log('Video play error:', err);
+        });
     }
     
     updateTaskRowContent(row, task) {
@@ -3263,15 +3351,43 @@ class TaskTimer {
         this.renderTasks();
     }
     
-    deleteTask(taskId) {
+    deleteTask(taskId, showSnackbar = true) {
+        const task = this.tasks.find(t => t.id === taskId);
+        if (!task) return;
+        
+        // Store task data for undo (deep copy)
+        const taskCopy = JSON.parse(JSON.stringify(task));
+        
+        // Remove task
         this.tasks = this.tasks.filter(t => t.id !== taskId);
         if (this.currentRunningTask === taskId) {
             this.currentRunningTask = null;
             this.stopTimer();
         }
+        
+        // Add to undo history
+        this.addToUndoHistory({
+            type: 'delete',
+            task: taskCopy,
+            undo: () => {
+                // Restore task
+                this.tasks.push(taskCopy);
+                this.saveToLocalStorage();
+                this.renderTasks();
+                this.renderFilterTabs();
+            }
+        });
+        
         this.saveToLocalStorage();
         this.renderTasks();
         this.renderFilterTabs();
+        
+        // Show snackbar with undo only if requested
+        if (showSnackbar) {
+            this.showSnackbar(`Deleted task: ${task.name}`, () => {
+                this.performUndo();
+            });
+        }
     }
     
     removeFromKanban(taskId) {
@@ -3299,17 +3415,21 @@ class TaskTimer {
         });
     }
     
-    showSnackbar(message, onUndo) {
+    showSnackbar(message, onUndo, duration = 5000) {
         // Remove existing snackbar if any
         const existingSnackbar = document.querySelector('.snackbar');
         if (existingSnackbar) {
             existingSnackbar.remove();
         }
         
-        // Clear any pending timeout
+        // Clear any pending timeout and interval
         if (this.snackbarTimeoutId) {
             clearTimeout(this.snackbarTimeoutId);
             this.snackbarTimeoutId = null;
+        }
+        if (this.snackbarProgressInterval) {
+            clearInterval(this.snackbarProgressInterval);
+            this.snackbarProgressInterval = null;
         }
         
         // Create snackbar element
@@ -3320,12 +3440,22 @@ class TaskTimer {
         this.pendingUndoAction = onUndo;
         
         const undoButton = onUndo ? '<button class="snackbar-undo">Undo</button>' : '';
+        const closeButton = '<button class="snackbar-close" aria-label="Close">×</button>';
+        
         snackbar.innerHTML = `
-            <span class="snackbar-message">${message}</span>
-            ${undoButton}
+            <div class="snackbar-progress"></div>
+            <div class="snackbar-content">
+                <span class="snackbar-message">${message}</span>
+                <div class="snackbar-actions">
+                    ${undoButton}
+                    ${closeButton}
+                </div>
+            </div>
         `;
         
         document.body.appendChild(snackbar);
+        
+        const progressBar = snackbar.querySelector('.snackbar-progress');
         
         // Setup undo button handler
         if (onUndo) {
@@ -3341,15 +3471,32 @@ class TaskTimer {
             }
         }
         
+        // Setup close button handler
+        const closeBtn = snackbar.querySelector('.snackbar-close');
+        if (closeBtn) {
+            closeBtn.onclick = () => {
+                this.hideSnackbar();
+            };
+        }
+        
         // Show snackbar
         setTimeout(() => {
             snackbar.classList.add('show');
+            // Start progress bar animation - start full and animate to empty
+            progressBar.style.transform = 'scaleX(1)';
+            progressBar.style.transition = `transform ${duration}ms linear`;
+            // Trigger animation after a small delay to ensure transition is applied
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    progressBar.style.transform = 'scaleX(0)';
+                });
+            });
         }, 10);
         
-        // Auto-hide after 5 seconds
+        // Auto-hide after duration
         this.snackbarTimeoutId = setTimeout(() => {
             this.hideSnackbar();
-        }, 5000);
+        }, duration);
     }
     
     hideSnackbar() {
@@ -3364,7 +3511,77 @@ class TaskTimer {
             clearTimeout(this.snackbarTimeoutId);
             this.snackbarTimeoutId = null;
         }
+        if (this.snackbarProgressInterval) {
+            clearInterval(this.snackbarProgressInterval);
+            this.snackbarProgressInterval = null;
+        }
         this.pendingUndoAction = null;
+    }
+    
+    addToUndoHistory(action) {
+        // Add action to undo history
+        this.undoHistory.push(action);
+        
+        // Keep only last 5 actions
+        if (this.undoHistory.length > this.maxHistorySize) {
+            this.undoHistory.shift();
+        }
+        
+        // Clear redo history when new action is performed
+        this.redoHistory = [];
+    }
+    
+    performUndo() {
+        if (this.undoHistory.length === 0) {
+            this.showSnackbar("Can't undo anymore", null, 3000);
+            return false;
+        }
+        
+        const action = this.undoHistory.pop();
+        
+        // Store action for redo
+        this.redoHistory.push(action);
+        if (this.redoHistory.length > this.maxHistorySize) {
+            this.redoHistory.shift();
+        }
+        
+        // Perform undo
+        if (action.undo) {
+            action.undo();
+        }
+        
+        return true;
+    }
+    
+    performRedo() {
+        if (this.redoHistory.length === 0) {
+            return false;
+        }
+        
+        const action = this.redoHistory.pop();
+        
+        // Perform redo (re-apply the action)
+        if (action.redo) {
+            action.redo();
+        } else if (action.type === 'delete') {
+            // For delete, redo means delete again
+            this.tasks = this.tasks.filter(t => t.id !== action.task.id);
+            if (this.currentRunningTask === action.task.id) {
+                this.currentRunningTask = null;
+                this.stopTimer();
+            }
+            this.saveToLocalStorage();
+            this.renderTasks();
+            this.renderFilterTabs();
+        }
+        
+        // Store action back to undo history
+        this.undoHistory.push(action);
+        if (this.undoHistory.length > this.maxHistorySize) {
+            this.undoHistory.shift();
+        }
+        
+        return true;
     }
     
     startEditTask(taskId) {
@@ -4209,7 +4426,6 @@ class TaskTimer {
             this.saveToLocalStorage();
             this.renderTagsManagement();
             this.renderTasks();
-            this.showNotification('Tag color updated!');
         }
     }
     
@@ -5596,12 +5812,8 @@ class TaskTimer {
         
         this.tagFilterTabs.innerHTML = '';
         
-        // Count tasks based on hideCompleted state
-        // If hideCompleted is false (completed tasks visible), count ALL tasks
-        // If hideCompleted is true (completed tasks hidden), count only non-completed tasks
-        const allCount = this.hideCompleted 
-            ? this.tasks.filter(task => !(task.isCompleted || task.state === this.TASK_STATES.COMPLETE)).length
-            : this.tasks.length;
+        // Count all tasks
+        const allCount = this.tasks.length;
         
         // Only show "All" tab if it has 1 or more entries
         if (allCount >= 1) {
@@ -5618,15 +5830,10 @@ class TaskTimer {
         
         // Create tabs for each tag, but only if they have 1 or more entries
         this.allTags.forEach(tag => {
-            // Count tasks with this tag based on hideCompleted state
-            const tagCount = this.hideCompleted
-                ? this.tasks.filter(task => 
-                    !(task.isCompleted || task.state === this.TASK_STATES.COMPLETE) &&
-                    task.tags && task.tags.some(t => t.toLowerCase() === tag.name.toLowerCase())
-                ).length
-                : this.tasks.filter(task => 
-                    task.tags && task.tags.some(t => t.toLowerCase() === tag.name.toLowerCase())
-                ).length;
+            // Count tasks with this tag
+            const tagCount = this.tasks.filter(task => 
+                task.tags && task.tags.some(t => t.toLowerCase() === tag.name.toLowerCase())
+            ).length;
             
             // Only create tab if count is 1 or more
             if (tagCount >= 1) {

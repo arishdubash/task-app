@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DEEP WORK</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -14,6 +15,9 @@
                 <img src="images/logo.png" alt="Get Shit Done logo" class="logo-image" id="logo-image">
                 <img src="images/icon.png" alt="Get Shit Done icon" class="logo-image icon-image" id="icon-image">
             </div>
+            <button class="sidebar-toggle-btn" id="sidebar-toggle-btn" aria-label="Toggle sidebar">
+                <span class="material-symbols-outlined" id="sidebar-toggle-icon">left_panel_close</span>
+            </button>
         </div>
         <svg style="position: absolute; width: 0; height: 0;">
             <defs>
@@ -84,26 +88,50 @@
                 <div class="tag-filter-tabs" id="tag-filter-tabs">
                     <!-- Tabs will be dynamically generated here -->
                 </div>
-                <div class="hide-completed-toggle-container">
-                    <label class="hide-completed-toggle-label">
-                        <span>Hide Completed</span>
-                        <input type="checkbox" id="hide-completed-toggle" class="hide-completed-toggle">
-                        <span class="toggle-slider"></span>
-                    </label>
-                </div>
             </div>
             
             <!-- Tasks Tables -->
             <!-- This Week Table -->
-            <div class="tasks-table-section">
-                <h2 class="tasks-section-title">This Week</h2>
-                <div class="tasks-table-container">
+            <div class="tasks-table-section" data-group="thisWeek">
+                <div class="tasks-section-header">
+                    <div class="tasks-section-title-wrapper">
+                        <button class="tasks-section-collapse-btn" data-group="thisWeek">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="6 9 12 15 18 9"></polyline>
+                            </svg>
+                        </button>
+                        <h2 class="tasks-section-title" data-group="thisWeek">This Week</h2>
+                        <span class="tasks-section-count" data-group="thisWeek">0</span>
+                    </div>
+                    <div class="tasks-section-actions">
+                        <button class="tasks-section-add-btn" data-group="thisWeek" title="Add task to this group">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="12" y1="5" x2="12" y2="19"></line>
+                                <line x1="5" y1="12" x2="19" y2="12"></line>
+                            </svg>
+                        </button>
+                        <div class="tasks-section-overflow-container">
+                            <button class="tasks-section-overflow-btn" data-group="thisWeek" title="More options">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="12" cy="12" r="1"></circle>
+                                    <circle cx="12" cy="5" r="1"></circle>
+                                    <circle cx="12" cy="19" r="1"></circle>
+                                </svg>
+                            </button>
+                            <div class="tasks-section-overflow-menu" data-group="thisWeek">
+                                <button class="overflow-menu-item" data-action="rename" data-group="thisWeek">Rename Group</button>
+                                <button class="overflow-menu-item" data-action="delete-all" data-group="thisWeek">Delete All Tasks</button>
+                                <button class="overflow-menu-item" data-action="delete-group" data-group="thisWeek">Delete Group</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="tasks-table-container" data-group="thisWeek">
                     <table class="tasks-table">
                         <thead>
                             <tr>
                                 <th class="checkbox-col"></th>
                                 <th class="name-col">Task</th>
-                                <th class="description-col">Notes</th>
                                 <th class="tags-col">Tags</th>
                                 <th class="status-col">Status</th>
                                 <th class="empty"> </th>
@@ -117,21 +145,98 @@
             </div>
             
             <!-- Later Table -->
-            <div class="tasks-table-section">
-                <h2 class="tasks-section-title">Later</h2>
-                <div class="tasks-table-container">
+            <div class="tasks-table-section" data-group="later">
+                <div class="tasks-section-header">
+                    <div class="tasks-section-title-wrapper">
+                        <button class="tasks-section-collapse-btn" data-group="later">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="6 9 12 15 18 9"></polyline>
+                            </svg>
+                        </button>
+                        <h2 class="tasks-section-title" data-group="later">Later</h2>
+                        <span class="tasks-section-count" data-group="later">0</span>
+                    </div>
+                    <div class="tasks-section-actions">
+                        <button class="tasks-section-add-btn" data-group="later" title="Add task to this group">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="12" y1="5" x2="12" y2="19"></line>
+                                <line x1="5" y1="12" x2="19" y2="12"></line>
+                            </svg>
+                        </button>
+                        <div class="tasks-section-overflow-container">
+                            <button class="tasks-section-overflow-btn" data-group="later" title="More options">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="12" cy="12" r="1"></circle>
+                                    <circle cx="12" cy="5" r="1"></circle>
+                                    <circle cx="12" cy="19" r="1"></circle>
+                                </svg>
+                            </button>
+                            <div class="tasks-section-overflow-menu" data-group="later">
+                                <button class="overflow-menu-item" data-action="rename" data-group="later">Rename Group</button>
+                                <button class="overflow-menu-item" data-action="delete-all" data-group="later">Delete All Tasks</button>
+                                <button class="overflow-menu-item" data-action="delete-group" data-group="later">Delete Group</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="tasks-table-container" data-group="later">
                     <table class="tasks-table">
                         <thead>
                             <tr>
                                 <th class="checkbox-col"></th>
                                 <th class="name-col">Task</th>
-                                <th class="description-col">Notes</th>
                                 <th class="tags-col">Tags</th>
                                 <th class="status-col">Status</th>
+                                <th class="empty"> </th>
                             </tr>
                         </thead>
                         <tbody id="later-tasks-body" class="sortable-tbody">
                             <!-- Tasks will be added here dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- Completed Table -->
+            <div class="tasks-table-section" data-group="completed">
+                <div class="tasks-section-header">
+                    <div class="tasks-section-title-wrapper">
+                        <button class="tasks-section-collapse-btn" data-group="completed">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="6 9 12 15 18 9"></polyline>
+                            </svg>
+                        </button>
+                        <h2 class="tasks-section-title" data-group="completed">Completed</h2>
+                        <span class="tasks-section-count" data-group="completed">0</span>
+                    </div>
+                    <div class="tasks-section-actions">
+                        <div class="tasks-section-overflow-container">
+                            <button class="tasks-section-overflow-btn" data-group="completed" title="More options">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="12" cy="12" r="1"></circle>
+                                    <circle cx="12" cy="5" r="1"></circle>
+                                    <circle cx="12" cy="19" r="1"></circle>
+                                </svg>
+                            </button>
+                            <div class="tasks-section-overflow-menu" data-group="completed">
+                                <button class="overflow-menu-item" data-action="delete-all" data-group="completed">Delete All Tasks</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="tasks-table-container" data-group="completed">
+                    <table class="tasks-table">
+                        <thead>
+                            <tr>
+                                <th class="checkbox-col"></th>
+                                <th class="name-col">Task</th>
+                                <th class="tags-col">Tags</th>
+                                <th class="status-col">Status</th>
+                                <th class="empty"> </th>
+                            </tr>
+                        </thead>
+                        <tbody id="completed-tasks-body" class="sortable-tbody">
+                            <!-- Completed tasks will be added here dynamically -->
                         </tbody>
                     </table>
                 </div>
@@ -406,6 +511,11 @@
             </div>
         </div>
     </div>
+    
+    <!-- Completion Video Overlay -->
+    <video id="completion-video" class="completion-video" autoplay muted loop>
+        <source src="videos/greenchecks-video-animation.webm" type="video/webm">
+    </video>
     
     <script src="script.js"></script>
 </body>
