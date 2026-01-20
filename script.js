@@ -9,9 +9,9 @@ class TaskTimer {
         this.pendingUndoAction = null;
         this.snackbarTimeoutId = null;
         this.snackbarProgressInterval = null;
-        this.undoHistory = []; // Stores last 5 actions for undo/redo
+        this.undoHistory = []; // Stores last 10 actions for undo/redo
         this.redoHistory = []; // Stores actions for redo
-        this.maxHistorySize = 5;
+        this.maxHistorySize = 10;
         // Default tags that cannot be deleted
         this.defaultTags = ['Personal', 'Chores', 'Work'];
         this.allTags = [
@@ -215,13 +215,15 @@ class TaskTimer {
     }
     
     // History Methods
-    addHistoryEntry(taskId, taskName, action) {
+    addHistoryEntry(taskId, taskName, action, tags = null, completedAt = null) {
         const entry = {
             id: Date.now(),
             taskId: taskId,
             taskName: taskName,
             action: action,
-            timestamp: new Date()
+            timestamp: new Date(),
+            tags: tags || null,
+            completedAt: completedAt || null
         };
         this.history.push(entry);
         this.saveToLocalStorage();
@@ -264,10 +266,20 @@ class TaskTimer {
         // Clear table body
         this.historyTasksBody.innerHTML = '';
         
-        // Get only completed tasks (those with completedAt set)
-        const completedTasks = this.tasks.filter(task => task.completedAt);
+        // Get only "Task completed" entries from history (this includes archived tasks)
+        // Use completedAt if available, otherwise fall back to timestamp for backwards compatibility
+        const completedEntries = this.history.filter(entry => {
+            if (entry.action === 'Task completed') {
+                // If completedAt exists, use it; otherwise use timestamp for old entries
+                if (!entry.completedAt && entry.timestamp) {
+                    entry.completedAt = entry.timestamp.getTime ? entry.timestamp.getTime() : new Date(entry.timestamp).getTime();
+                }
+                return entry.completedAt;
+            }
+            return false;
+        });
         
-        if (completedTasks.length === 0) {
+        if (completedEntries.length === 0) {
             const row = document.createElement('tr');
             row.innerHTML = `<td colspan="3" style="text-align: center; padding: 40px; color: var(--text-tertiary);">No completed tasks yet.</td>`;
             this.historyTasksBody.appendChild(row);
@@ -276,25 +288,25 @@ class TaskTimer {
         
         // Filter out duplicates - keep only the most recent completion per task
         const taskMap = new Map();
-        completedTasks.forEach(task => {
-            const existing = taskMap.get(task.id);
-            if (!existing || task.completedAt > existing.completedAt) {
-                taskMap.set(task.id, task);
+        completedEntries.forEach(entry => {
+            const existing = taskMap.get(entry.taskId);
+            if (!existing || entry.completedAt > existing.completedAt) {
+                taskMap.set(entry.taskId, entry);
             }
         });
-        const uniqueCompletedTasks = Array.from(taskMap.values());
+        const uniqueCompletedEntries = Array.from(taskMap.values());
         
         // Apply tag filter if one is selected
-        let filteredTasks = uniqueCompletedTasks;
+        let filteredEntries = uniqueCompletedEntries;
         if (this.selectedTagFilter && this.selectedTagFilter !== 'all') {
-            filteredTasks = uniqueCompletedTasks.filter(task => 
-                task.tags && task.tags.some(tagName => 
+            filteredEntries = uniqueCompletedEntries.filter(entry => 
+                entry.tags && entry.tags.some(tagName => 
                     tagName.toLowerCase() === this.selectedTagFilter.toLowerCase()
                 )
             );
         }
         
-        if (filteredTasks.length === 0) {
+        if (filteredEntries.length === 0) {
             const row = document.createElement('tr');
             row.innerHTML = `<td colspan="3" style="text-align: center; padding: 40px; color: var(--text-tertiary);">No completed tasks found.</td>`;
             this.historyTasksBody.appendChild(row);
@@ -302,12 +314,12 @@ class TaskTimer {
         }
         
         // Sort by completion date (most recent first)
-        filteredTasks.sort((a, b) => b.completedAt - a.completedAt);
+        filteredEntries.sort((a, b) => b.completedAt - a.completedAt);
         
-        // Group tasks by day
-        const tasksByDay = new Map();
-        filteredTasks.forEach(task => {
-            const completionDate = new Date(task.completedAt);
+        // Group entries by day
+        const entriesByDay = new Map();
+        filteredEntries.forEach(entry => {
+            const completionDate = new Date(entry.completedAt);
             // Use YYYY-MM-DD for sorting key
             const year = completionDate.getFullYear();
             const month = String(completionDate.getMonth() + 1).padStart(2, '0');
@@ -321,19 +333,19 @@ class TaskTimer {
                 day: 'numeric' 
             });
             
-            if (!tasksByDay.has(sortKey)) {
-                tasksByDay.set(sortKey, { displayKey, tasks: [] });
+            if (!entriesByDay.has(sortKey)) {
+                entriesByDay.set(sortKey, { displayKey, entries: [] });
             }
-            tasksByDay.get(sortKey).tasks.push(task);
+            entriesByDay.get(sortKey).entries.push(entry);
         });
         
-        // Render tasks grouped by day - sort by date key (most recent first)
-        const sortedDays = Array.from(tasksByDay.entries()).sort((a, b) => {
+        // Render entries grouped by day - sort by date key (most recent first)
+        const sortedDays = Array.from(entriesByDay.entries()).sort((a, b) => {
             return b[0].localeCompare(a[0]); // Most recent first (YYYY-MM-DD format)
         });
         
         sortedDays.forEach(([sortKey, dayData]) => {
-            const dayTasks = dayData.tasks;
+            const dayEntries = dayData.entries;
             const displayKey = dayData.displayKey;
             
             // Day header row
@@ -347,7 +359,7 @@ class TaskTimer {
             this.historyTasksBody.appendChild(dayHeaderRow);
             
             // Task rows for this day
-            dayTasks.forEach(task => {
+            dayEntries.forEach(entry => {
                 const row = document.createElement('tr');
                 row.className = 'task-row';
                 
@@ -356,7 +368,7 @@ class TaskTimer {
                 timeCell.className = 'status-col';
                 timeCell.style.paddingLeft = '20px';
                 
-                const completionDate = new Date(task.completedAt);
+                const completionDate = new Date(entry.completedAt);
                 const timeStr = completionDate.toLocaleTimeString('en-US', { 
                     hour: '2-digit', 
                     minute: '2-digit',
@@ -378,15 +390,15 @@ class TaskTimer {
                 
                 const nameSpan = document.createElement('span');
                 nameSpan.style.color = 'var(--text-primary)';
-                nameSpan.textContent = task.name;
+                nameSpan.textContent = entry.taskName;
                 nameContainer.appendChild(nameSpan);
                 
                 // Tags
-                if (task.tags && task.tags.length > 0) {
+                if (entry.tags && entry.tags.length > 0) {
                     const tagsContainer = document.createElement('div');
                     tagsContainer.className = 'table-tags';
                     tagsContainer.style.cssText = 'display: inline-flex; gap: 6px; flex-wrap: wrap;';
-                    task.tags.forEach(tagName => {
+                    entry.tags.forEach(tagName => {
                         const tag = this.getTagByName(tagName);
                         if (tag) {
                             const tagSpan = document.createElement('span');
@@ -1629,14 +1641,14 @@ class TaskTimer {
         
         // Keyboard shortcuts for undo/redo
         document.addEventListener('keydown', (e) => {
-            // Check if user is typing in an input field
-            const isInputFocused = e.target.tagName === 'INPUT' || 
-                                  e.target.tagName === 'TEXTAREA' || 
-                                  e.target.isContentEditable;
+            // Check if user is typing in an input field (only block if it's a text input/textarea)
+            const isTextInput = (e.target.tagName === 'INPUT' && (e.target.type === 'text' || e.target.type === 'search' || !e.target.type)) || 
+                                e.target.tagName === 'TEXTAREA' || 
+                                (e.target.isContentEditable && e.target.tagName !== 'BODY');
             
             // Ctrl+Z or Cmd+Z for undo
             if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
-                if (!isInputFocused || (e.target.tagName === 'INPUT' && e.target.type === 'text' && e.target.selectionStart === 0 && e.target.selectionEnd === 0)) {
+                if (!isTextInput) {
                     e.preventDefault();
                     this.performUndo();
                 }
@@ -1644,7 +1656,7 @@ class TaskTimer {
             
             // Ctrl+Shift+Z or Cmd+Shift+Z for redo
             if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'z') {
-                if (!isInputFocused) {
+                if (!isTextInput) {
                     e.preventDefault();
                     this.performRedo();
                 }
@@ -2497,6 +2509,10 @@ class TaskTimer {
             if (confirm(`Are you sure you want to delete all tasks in "${this.getGroupName(group)}"? This action cannot be undone.`)) {
                 this.deleteAllTasksInGroup(group);
             }
+        } else if (action === 'archive-all') {
+            if (confirm(`Are you sure you want to archive all completed tasks? They will be removed from the completed list but kept in the history log.`)) {
+                this.archiveAllCompletedTasks();
+            }
         }
     }
     
@@ -2558,6 +2574,68 @@ class TaskTimer {
         if (count > 0) {
             this.showSnackbar(`Deleted ${count} task${count > 1 ? 's' : ''} from ${groupName}`);
         }
+    }
+    
+    archiveAllCompletedTasks() {
+        const tasksToArchive = this.tasks.filter(task => {
+            return task.isCompleted || task.state === this.TASK_STATES.COMPLETE;
+        });
+        
+        const count = tasksToArchive.length;
+        if (count === 0) return;
+        
+        // Store deep copies of tasks for undo
+        const tasksCopy = tasksToArchive.map(task => JSON.parse(JSON.stringify(task)));
+        const taskIds = tasksToArchive.map(task => task.id);
+        
+        // Remove tasks from the tasks array (history entries remain in this.history)
+        tasksToArchive.forEach(task => {
+            // Remove task from tasks array
+            this.tasks = this.tasks.filter(t => t.id !== task.id);
+            
+            // If this task was running, stop the timer
+            if (this.currentRunningTask === task.id) {
+                this.currentRunningTask = null;
+                this.stopTimer();
+            }
+        });
+        
+        // Add to undo history
+        this.addToUndoHistory({
+            type: 'archive',
+            tasks: tasksCopy,
+            taskIds: taskIds,
+            undo: () => {
+                // Restore all archived tasks
+                tasksCopy.forEach(taskCopy => {
+                    this.tasks.push(taskCopy);
+                });
+                this.saveToLocalStorage();
+                this.renderTasks();
+                this.renderFilterTabs();
+            },
+            redo: () => {
+                // Re-archive the tasks
+                taskIds.forEach(taskId => {
+                    this.tasks = this.tasks.filter(t => t.id !== taskId);
+                });
+                if (this.currentRunningTask && taskIds.includes(this.currentRunningTask)) {
+                    this.currentRunningTask = null;
+                    this.stopTimer();
+                }
+                this.saveToLocalStorage();
+                this.renderTasks();
+                this.renderFilterTabs();
+            }
+        });
+        
+        this.saveToLocalStorage();
+        this.renderTasks();
+        
+        // Show snackbar for archiving with undo option
+        this.showSnackbar(`Archived ${count} task${count > 1 ? 's' : ''}. They remain in the history log.`, () => {
+            this.performUndo();
+        });
     }
     
     updateGroupCounts(counts) {
@@ -2744,7 +2822,7 @@ class TaskTimer {
             task.uncheckedAt = null; // Clear unchecked time
             task.state = this.TASK_STATES.COMPLETE;
             // Log history for completion
-            this.addHistoryEntry(task.id, task.name, 'Task completed');
+            this.addHistoryEntry(task.id, task.name, 'Task completed', task.tags || null, task.completedAt);
         } else {
             task.completedAt = null;
             task.uncheckedAt = Date.now(); // Track when unchecked
@@ -3254,7 +3332,10 @@ class TaskTimer {
             } else if (newState === this.TASK_STATES.IN_PROGRESS) {
                 this.addHistoryEntry(taskId, task.name, 'Task moved to In Progress');
             } else if (newState === this.TASK_STATES.COMPLETE) {
-                this.addHistoryEntry(taskId, task.name, 'Task completed');
+                if (!task.completedAt) {
+                    task.completedAt = Date.now();
+                }
+                this.addHistoryEntry(taskId, task.name, 'Task completed', task.tags || null, task.completedAt);
             }
         }
         
@@ -3296,8 +3377,11 @@ class TaskTimer {
             if (task.startTime && !task.endTime) {
                 task.endTime = new Date();
             }
+            if (!task.completedAt) {
+                task.completedAt = Date.now();
+            }
             // Log history
-            this.addHistoryEntry(taskId, task.name, 'Task completed');
+            this.addHistoryEntry(taskId, task.name, 'Task completed', task.tags || null, task.completedAt);
             // Render first to ensure task element exists
             this.saveToLocalStorage();
             this.renderTasks();
@@ -3553,7 +3637,7 @@ class TaskTimer {
         // Add action to undo history
         this.undoHistory.push(action);
         
-        // Keep only last 5 actions
+        // Keep only last 10 actions
         if (this.undoHistory.length > this.maxHistorySize) {
             this.undoHistory.shift();
         }
