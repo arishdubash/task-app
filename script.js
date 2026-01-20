@@ -264,125 +264,156 @@ class TaskTimer {
         // Clear table body
         this.historyTasksBody.innerHTML = '';
         
-        // Sort history by timestamp (most recent first)
-        const sortedHistory = [...this.history].sort((a, b) => b.timestamp - a.timestamp);
+        // Get only completed tasks (those with completedAt set)
+        const completedTasks = this.tasks.filter(task => task.completedAt);
         
-        if (sortedHistory.length === 0) {
+        if (completedTasks.length === 0) {
             const row = document.createElement('tr');
-            row.innerHTML = `<td colspan="3" style="text-align: center; padding: 40px; color: var(--text-tertiary);">No history entries yet.</td>`;
+            row.innerHTML = `<td colspan="3" style="text-align: center; padding: 40px; color: var(--text-tertiary);">No completed tasks yet.</td>`;
             this.historyTasksBody.appendChild(row);
             return;
         }
         
-        sortedHistory.forEach(entry => {
+        // Filter out duplicates - keep only the most recent completion per task
+        const taskMap = new Map();
+        completedTasks.forEach(task => {
+            const existing = taskMap.get(task.id);
+            if (!existing || task.completedAt > existing.completedAt) {
+                taskMap.set(task.id, task);
+            }
+        });
+        const uniqueCompletedTasks = Array.from(taskMap.values());
+        
+        // Apply tag filter if one is selected
+        let filteredTasks = uniqueCompletedTasks;
+        if (this.selectedTagFilter && this.selectedTagFilter !== 'all') {
+            filteredTasks = uniqueCompletedTasks.filter(task => 
+                task.tags && task.tags.some(tagName => 
+                    tagName.toLowerCase() === this.selectedTagFilter.toLowerCase()
+                )
+            );
+        }
+        
+        if (filteredTasks.length === 0) {
             const row = document.createElement('tr');
-            row.className = 'task-row';
+            row.innerHTML = `<td colspan="3" style="text-align: center; padding: 40px; color: var(--text-tertiary);">No completed tasks found.</td>`;
+            this.historyTasksBody.appendChild(row);
+            return;
+        }
+        
+        // Sort by completion date (most recent first)
+        filteredTasks.sort((a, b) => b.completedAt - a.completedAt);
+        
+        // Group tasks by day
+        const tasksByDay = new Map();
+        filteredTasks.forEach(task => {
+            const completionDate = new Date(task.completedAt);
+            // Use YYYY-MM-DD for sorting key
+            const year = completionDate.getFullYear();
+            const month = String(completionDate.getMonth() + 1).padStart(2, '0');
+            const day = String(completionDate.getDate()).padStart(2, '0');
+            const sortKey = `${year}-${month}-${day}`;
             
-            // Format date and time
-            const date = entry.timestamp.toLocaleDateString('en-US', { 
+            // Format for display
+            const displayKey = completionDate.toLocaleDateString('en-US', { 
                 year: 'numeric', 
-                month: 'short', 
+                month: 'long', 
                 day: 'numeric' 
             });
-            const time = entry.timestamp.toLocaleTimeString('en-US', { 
-                hour: '2-digit', 
-                minute: '2-digit',
-                hour12: true 
-            });
             
-            // Date & Time cell (first column) with colored "at"
-            const dateTimeCell = document.createElement('td');
-            dateTimeCell.className = 'status-col';
-            
-            // Date in white, "at" in secondary color, time in white
-            const dateSpan = document.createElement('span');
-            dateSpan.style.color = 'var(--text-primary)';
-            dateSpan.textContent = date;
-            
-            const atSpan = document.createElement('span');
-            atSpan.style.color = 'var(--text-secondary)';
-            atSpan.textContent = ' at ';
-            
-            const timeSpan = document.createElement('span');
-            timeSpan.style.color = 'var(--text-primary)';
-            timeSpan.textContent = time;
-            
-            dateTimeCell.appendChild(dateSpan);
-            dateTimeCell.appendChild(atSpan);
-            dateTimeCell.appendChild(timeSpan);
-            
-            // Task action cell (combined task name and action)
-            const actionCell = document.createElement('td');
-            actionCell.className = 'description-col';
-            
-            // Format action text based on action type
-            // Task name in white, action text in darker neutral
-            let taskName = '';
-            let actionText = '';
-            let keyword = '';
-            let keywordColor = '';
-            
-            if (entry.action === 'Task added to Today') {
-                taskName = entry.taskName;
-                actionText = ' added to ';
-                keyword = 'Today';
-                keywordColor = 'var(--purple-primary)';
-            } else if (entry.action === 'Task moved to In Progress') {
-                taskName = entry.taskName;
-                actionText = ' moved to ';
-                keyword = 'In Progress';
-                keywordColor = 'var(--warning)';
-            } else if (entry.action === 'Task completed') {
-                taskName = entry.taskName;
-                actionText = ' ';
-                keyword = 'completed';
-                keywordColor = 'var(--success)';
+            if (!tasksByDay.has(sortKey)) {
+                tasksByDay.set(sortKey, { displayKey, tasks: [] });
             }
+            tasksByDay.get(sortKey).tasks.push(task);
+        });
+        
+        // Render tasks grouped by day - sort by date key (most recent first)
+        const sortedDays = Array.from(tasksByDay.entries()).sort((a, b) => {
+            return b[0].localeCompare(a[0]); // Most recent first (YYYY-MM-DD format)
+        });
+        
+        sortedDays.forEach(([sortKey, dayData]) => {
+            const dayTasks = dayData.tasks;
+            const displayKey = dayData.displayKey;
             
-            if (keyword) {
-                // Task name in white
-                const taskNameSpan = document.createElement('span');
-                taskNameSpan.style.color = 'var(--text-primary)';
-                taskNameSpan.textContent = taskName;
-                
-                // Action text in darker neutral
-                const actionTextSpan = document.createElement('span');
-                actionTextSpan.style.color = 'var(--text-secondary)';
-                actionTextSpan.textContent = actionText;
-                
-                // Keyword with color
-                const keywordSpan = document.createElement('span');
-                keywordSpan.style.color = keywordColor;
-                keywordSpan.textContent = keyword;
-                
-                actionCell.appendChild(taskNameSpan);
-                actionCell.appendChild(actionTextSpan);
-                actionCell.appendChild(keywordSpan);
-            } else {
-                actionCell.textContent = entry.action;
-            }
+            // Day header row
+            const dayHeaderRow = document.createElement('tr');
+            dayHeaderRow.className = 'history-day-header';
+            const dayHeaderCell = document.createElement('td');
+            dayHeaderCell.colSpan = 3;
+            dayHeaderCell.style.cssText = 'padding: 16px 20px 8px 20px; font-weight: 600; color: var(--text-secondary); font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;';
+            dayHeaderCell.textContent = displayKey;
+            dayHeaderRow.appendChild(dayHeaderCell);
+            this.historyTasksBody.appendChild(dayHeaderRow);
             
-            // Delete button cell
-            const deleteCell = document.createElement('td');
-            deleteCell.className = 'delete-col';
-            const deleteBtn = document.createElement('button');
-            deleteBtn.className = 'table-action-btn danger small-icon';
-            deleteBtn.title = 'Delete history entry';
-            deleteBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M10 11v6M14 11v6"/>
-            </svg>`;
-            deleteBtn.addEventListener('click', () => {
-                this.deleteHistoryEntry(entry.id);
-            });
-            deleteCell.appendChild(deleteBtn);
-            
-            // Append cells to row (Date & Time first, then Task action, then Delete)
-            row.appendChild(dateTimeCell);
-            row.appendChild(actionCell);
-            row.appendChild(deleteCell);
+            // Task rows for this day
+            dayTasks.forEach(task => {
+                const row = document.createElement('tr');
+                row.className = 'task-row';
+                
+                // Time cell - show the time when completed (day header already shows the date)
+                const timeCell = document.createElement('td');
+                timeCell.className = 'status-col';
+                timeCell.style.paddingLeft = '20px';
+                
+                const completionDate = new Date(task.completedAt);
+                const timeStr = completionDate.toLocaleTimeString('en-US', { 
+                    hour: '2-digit', 
+                    minute: '2-digit',
+                    hour12: true 
+                });
+                
+                const timeSpan = document.createElement('span');
+                timeSpan.style.color = 'var(--text-secondary)';
+                timeSpan.textContent = timeStr;
+                timeCell.appendChild(timeSpan);
+                
+                // Task name and tags cell
+                const taskCell = document.createElement('td');
+                taskCell.className = 'description-col';
+                
+                // Task name
+                const nameContainer = document.createElement('div');
+                nameContainer.style.cssText = 'display: flex; align-items: center; gap: 8px; flex-wrap: wrap;';
+                
+                const nameSpan = document.createElement('span');
+                nameSpan.style.color = 'var(--text-primary)';
+                nameSpan.textContent = task.name;
+                nameContainer.appendChild(nameSpan);
+                
+                // Tags
+                if (task.tags && task.tags.length > 0) {
+                    const tagsContainer = document.createElement('div');
+                    tagsContainer.className = 'table-tags';
+                    tagsContainer.style.cssText = 'display: inline-flex; gap: 6px; flex-wrap: wrap;';
+                    task.tags.forEach(tagName => {
+                        const tag = this.getTagByName(tagName);
+                        if (tag) {
+                            const tagSpan = document.createElement('span');
+                            tagSpan.className = 'task-tag';
+                            const transparentBg = this.hexToRgba(tag.color, 0.15);
+                            tagSpan.style.cssText = `background: ${transparentBg}; color: ${tag.color}`;
+                            tagSpan.textContent = tagName;
+                            tagsContainer.appendChild(tagSpan);
+                        }
+                    });
+                    nameContainer.appendChild(tagsContainer);
+                }
+                
+                taskCell.appendChild(nameContainer);
+                
+                // Empty cell for spacing
+                const emptyCell = document.createElement('td');
+                emptyCell.className = 'empty';
+                
+                // Append cells to row
+                row.appendChild(timeCell);
+                row.appendChild(taskCell);
+                row.appendChild(emptyCell);
             
             // Append row to table body
             this.historyTasksBody.appendChild(row);
+            });
         });
     }
     
@@ -476,6 +507,8 @@ class TaskTimer {
         this.tagFilterTabsContainer = document.getElementById('tag-filter-tabs-container');
         this.tagFilterTabs = document.getElementById('tag-filter-tabs');
         this.kanbanFilterTabs = document.getElementById('kanban-filter-tabs');
+        this.historyFilterTabsContainer = document.getElementById('history-filter-tabs-container');
+        this.historyFilterTabs = document.getElementById('history-filter-tabs');
         
         // Emoji selector elements
         this.emojiPickerBtn = document.getElementById('emoji-picker-btn');
@@ -4296,9 +4329,11 @@ class TaskTimer {
             if (this.kanbanView) this.kanbanView.style.display = 'none';
             if (this.tagsView) this.tagsView.style.display = 'none';
             if (this.historyView) this.historyView.style.display = 'block';
-            this.renderHistory();
-            // Hide toggle container on non-tasks views
+            // Hide tasks filter tabs
             if (this.tagFilterTabsContainer) this.tagFilterTabsContainer.style.display = 'none';
+            // Show history filter tabs
+            this.renderHistoryFilterTabs();
+            this.renderHistory();
         } else {
             // Tasks view
             if (this.kanbanView) this.kanbanView.style.display = 'none';
@@ -5919,11 +5954,83 @@ class TaskTimer {
         }
     }
     
+    renderHistoryFilterTabs() {
+        if (!this.historyFilterTabs || !this.historyFilterTabsContainer) return;
+        
+        // Get completed tasks (filter out duplicates - most recent completion per task)
+        const completedTasks = this.tasks.filter(task => task.completedAt);
+        const taskMap = new Map();
+        completedTasks.forEach(task => {
+            const existing = taskMap.get(task.id);
+            if (!existing || task.completedAt > existing.completedAt) {
+                taskMap.set(task.id, task);
+            }
+        });
+        const uniqueCompletedTasks = Array.from(taskMap.values());
+        
+        // Only show container if there are tags and completed tasks
+        if (this.allTags.length === 0 || uniqueCompletedTasks.length === 0) {
+            this.historyFilterTabsContainer.style.display = 'none';
+            return;
+        }
+        
+        this.historyFilterTabs.innerHTML = '';
+        
+        // Count all completed tasks
+        const allCount = uniqueCompletedTasks.length;
+        
+        // Only show "All" tab if it has 1 or more entries
+        if (allCount >= 1) {
+            const allTab = document.createElement('button');
+            allTab.className = `filter-tab ${this.selectedTagFilter === 'all' ? 'active' : ''}`;
+            allTab.dataset.filter = 'all';
+            allTab.innerHTML = `
+                <span class="filter-tab-label">All</span>
+                <span class="filter-tab-badge">${allCount}</span>
+            `;
+            allTab.onclick = () => this.setTagFilter('all');
+            this.historyFilterTabs.appendChild(allTab);
+        }
+        
+        // Create tabs for each tag, but only if they have 1 or more completed tasks
+        this.allTags.forEach(tag => {
+            // Count completed tasks with this tag (case-insensitive)
+            const tagCount = uniqueCompletedTasks.filter(task => 
+                task.tags && task.tags.some(t => t.toLowerCase() === tag.name.toLowerCase())
+            ).length;
+            
+            // Only create tab if count is 1 or more
+            if (tagCount >= 1) {
+                const tab = document.createElement('button');
+                tab.className = `filter-tab ${this.selectedTagFilter === tag.name ? 'active' : ''}`;
+                tab.dataset.filter = tag.name;
+                tab.innerHTML = `
+                    <span class="filter-tab-label">${tag.name}</span>
+                    <span class="filter-tab-badge" style="background: ${tag.color}20; color: ${tag.color}">${tagCount}</span>
+                `;
+                tab.onclick = () => this.setTagFilter(tag.name);
+                this.historyFilterTabs.appendChild(tab);
+            }
+        });
+        
+        // Show container if there are any completed tasks (even if all tabs are hidden)
+        if (uniqueCompletedTasks.length > 0) {
+            this.historyFilterTabsContainer.style.display = 'flex';
+        } else {
+            this.historyFilterTabsContainer.style.display = 'none';
+        }
+    }
+    
     setTagFilter(tagName) {
         this.selectedTagFilter = tagName;
         this.renderFilterTabs();
         this.renderKanbanFilterTabs();
+        this.renderHistoryFilterTabs();
         this.renderTasks();
+        // Only render history if we're currently viewing it
+        if (this.historyView && this.historyView.style.display !== 'none') {
+            this.renderHistory();
+        }
     }
 }
 

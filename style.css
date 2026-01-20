@@ -38,7 +38,7 @@
 }
 
 body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+    font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
     background: var(--bg-primary);
     color: var(--text-primary);
     min-height: 100vh;
@@ -47,6 +47,10 @@ body {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     position: relative;
+}
+
+h1 {
+    text-transform: uppercase;
 }
 
 /* Sidebar */
@@ -1151,7 +1155,7 @@ h1 {
 }
 
 .task-time {
-    font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+    font-family: 'Poppins', monospace;
     font-size: 13px;
     color: var(--text-secondary);
     min-width: 100px;
@@ -1165,7 +1169,7 @@ h1 {
 }
 
 .task-time-range {
-    font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+    font-family: 'Poppins', monospace;
     font-size: 12px;
     color: var(--text-tertiary);
     text-align: center;
@@ -1293,7 +1297,7 @@ h1 {
 .task-time-row .task-time-range {
     font-size: 12px;
     color: var(--text-tertiary);
-    font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+    font-family: 'Poppins', monospace;
     font-weight: 400;
 }
 
@@ -1301,7 +1305,7 @@ h1 {
     color: var(--purple-primary);
     font-size: 12px;
     font-weight: 600;
-    font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+    font-family: 'Poppins', monospace;
     animation: pulse 2s infinite;
 }
 
@@ -1312,7 +1316,7 @@ h1 {
     border-radius: 4px;
     font-size: 12px;
     font-weight: 400;
-    font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+    font-family: 'Poppins', monospace;
 }
 
 .task-total-row {
@@ -1544,7 +1548,7 @@ h1 {
     width: 90px;
     text-align: center;
     font-size: 12px;
-    font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+    font-family: 'Poppins', monospace;
     font-weight: 500;
     outline: none;
     display: none;
@@ -1583,7 +1587,7 @@ h1 {
     width: 50px;
     text-align: center;
     font-size: 12px;
-    font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+    font-family: 'Poppins', monospace;
     font-weight: 500;
     outline: none;
     display: none;
@@ -1698,7 +1702,7 @@ h1 {
     font-size: 24px;
     font-weight: 700;
     color: var(--purple-primary);
-    font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+    font-family: 'Poppins', monospace;
     background: var(--bg-tertiary);
     padding: 12px 20px;
     border-radius: 8px;
